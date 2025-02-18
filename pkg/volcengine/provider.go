@@ -1,3 +1,18 @@
+// Copyright 2025 The Beijing Volcano Engine Technology Co., Ltd. Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
 package volcengine
 
 import (
@@ -7,13 +22,14 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/volcengine/volc-sdk-golang/service/privatezone"
 	"sigs.k8s.io/external-dns/endpoint"
 	"sigs.k8s.io/external-dns/plan"
 	"sigs.k8s.io/external-dns/provider"
 )
 
+// VolcengineProvider is a provider for Volcengine.
 type VolcengineProvider struct {
 	provider.BaseProvider
 	domainFilter   endpoint.DomainFilter
@@ -25,6 +41,7 @@ type VolcengineProvider struct {
 	czClient       cloudZoneAPI
 }
 
+// VolcengineConfig is the configuration for the Volcengine provider.
 type VolcengineConfig struct {
 	RegionID        string    `json:"regionId" yaml:"regionId"`
 	AccessKeyID     string    `json:"accessKeyId" yaml:"accessKeyId"`
@@ -32,11 +49,13 @@ type VolcengineConfig struct {
 	PrivateZone     bool      `json:"privateZone" yaml:"privateZone"`
 	VPCID           string    `json:"vpcId" yaml:"vpcId"`
 	ExpireTime      time.Time `json:"-" yaml:"-"`
+	Endpoint        string    `json:"endpoint" yaml:"endpoint"`
 }
 
+// NewVolcengineProvider creates a new Volcengine provider.
 func NewVolcengineProvider(domainFilter endpoint.DomainFilter, zoneIDFilter provider.ZoneIDFilter, config VolcengineConfig) (*VolcengineProvider, error) {
-	pzClient := NewPrivateZoneWrapper()
-	czClient := NewCzWrapper()
+	pzClient := NewPrivateZoneWrapper(config.RegionID, config.Endpoint)
+	czClient := newCzWrapper(config.RegionID, config.Endpoint)
 	return &VolcengineProvider{
 		domainFilter: domainFilter,
 		zoneIDFilter: zoneIDFilter,
@@ -48,6 +67,8 @@ func NewVolcengineProvider(domainFilter endpoint.DomainFilter, zoneIDFilter prov
 }
 
 func (p *VolcengineProvider) Records(ctx context.Context) (endpoints []*endpoint.Endpoint, err error) {
+
+	logrus.Infof("List Volcengine records, vpc: %s, privatezone:%t", p.vpcID, p.privateZone)
 	if p.privateZone {
 		return Records(ctx, p.pzClient, p.vpcID)
 	}
@@ -55,35 +76,40 @@ func (p *VolcengineProvider) Records(ctx context.Context) (endpoints []*endpoint
 }
 
 func Records(ctx context.Context, pz privateZoneAPI, vpc string) (endpoints []*endpoint.Endpoint, err error) {
-	log.Debugf("Retrieving Volcengine Private Zone records")
+	logrus.Debugf("Retrieving Volcengine Private Zone records")
 
 	// step 1: get all private zones
-	zones, err := pz.GetPrivateZones(ctx)
+	// zones, err := pz.GetPrivateZones(ctx)
+	// if err != nil {
+	// 	log.Errorf("Failed to list volcengine privatezones: %v", err)
+	// 	return nil, err
+	// }
+
+	// vpcZones := []privatezone.TopPrivateZoneResponse{}
+	// for _, zone := range zones {
+	// 	// filter out private zones
+	// 	zoneInfo, err := pz.GetPrivateZoneInfo(ctx, *zone.ZID)
+	// 	if err != nil {
+	// 		log.Errorf("Failed to get privatezone infos: %v", err)
+	// 		return nil, err
+	// 	}
+
+	// 	if vpc == "" {
+	// 		vpcZones = append(vpcZones, zone)
+	// 		continue
+	// 	}
+
+	// 	for _, bindVPC := range zoneInfo.BindVPCs {
+	// 		if *bindVPC.ID == vpc {
+	// 			log.Debugf("get matched zone: %s, vpc: %s", *zoneInfo.ZoneName, *bindVPC.ID)
+	// 			vpcZones = append(vpcZones, zone)
+	// 		}
+	// 	}
+	// }
+	vpcZones, err := pz.ListPrivateZones(ctx, vpc)
 	if err != nil {
-		log.Errorf("Failed to list volcengine privatezones: %v", err)
+		logrus.Errorf("Failed to list volcengine privatezones: %v", err)
 		return nil, err
-	}
-
-	vpcZones := []privatezone.TopPrivateZoneResponse{}
-	for _, zone := range zones {
-		// filter out private zones
-		zoneInfo, err := pz.GetPrivateZoneInfo(ctx, *zone.ZID)
-		if err != nil {
-			log.Errorf("Failed to get privatezone infos: %v", err)
-			return nil, err
-		}
-
-		if vpc == "" {
-			vpcZones = append(vpcZones, zone)
-			continue
-		}
-
-		for _, bindVPC := range zoneInfo.BindVPCs {
-			if *bindVPC.ID == vpc {
-				log.Debugf("get matched zone: %s, vpc: %s", *zoneInfo.ZoneName, *bindVPC.ID)
-				vpcZones = append(vpcZones, zone)
-			}
-		}
 	}
 
 	// step 2: get all record with zone
@@ -91,7 +117,7 @@ func Records(ctx context.Context, pz privateZoneAPI, vpc string) (endpoints []*e
 		zid := strconv.FormatInt(*zone.ZID, 10)
 		records, err := pz.GetPrivateZoneRecords(ctx, zid)
 		if err != nil {
-			log.Errorf("Failed to get privatezone records: %v", err)
+			logrus.Errorf("Failed to get privatezone records: %v", err)
 			return nil, err
 		}
 
@@ -116,7 +142,7 @@ func Records(ctx context.Context, pz privateZoneAPI, vpc string) (endpoints []*e
 }
 
 func (p *VolcengineProvider) ApplyChanges(ctx context.Context, changes *plan.Changes) error {
-	if changes == nil || len(changes.Create)+len(changes.Delete)+len(changes.UpdateNew) == 0 {
+	if changes == nil {
 		// No op
 		return nil
 	}
@@ -127,7 +153,7 @@ func (p *VolcengineProvider) ApplyChanges(ctx context.Context, changes *plan.Cha
 }
 
 func (p *VolcengineProvider) applyChangesForPrivateZone(ctx context.Context, changes *plan.Changes) error {
-	log.Infof("ApplyChanges to Volcengine Private Zone: %++v", *changes)
+	logrus.Infof("ApplyChanges to Volcengine Private Zone: %++v", *changes)
 
 	// step1: get all private zones
 	zones, err := p.pzClient.GetPrivateZones(ctx)
@@ -140,44 +166,73 @@ func (p *VolcengineProvider) applyChangesForPrivateZone(ctx context.Context, cha
 		zoneNameIDMapper[strconv.FormatInt(zid, 10)] = *zoneinfo.ZoneName
 	}
 
-	// step2: handle create record
-	if err := p.createPrivateZoneRecords(ctx, zoneNameIDMapper, changes.Create); err != nil {
-		return err
+	toCreate := make([]*endpoint.Endpoint, 0)
+	toDelete := make([]*endpoint.Endpoint, 0)
+	// toUpdate := make([]*endpoint.Endpoint, 0)
+
+	toCreate = append(toCreate, changes.Create...)
+	toDelete = append(toDelete, changes.Delete...)
+
+	toCreate = append(toCreate, changes.UpdateNew...)
+	toDelete = append(toDelete, changes.UpdateOld...)
+
+	if len(toDelete) > 0 {
+		if err := p.deletePrivateZoneRecords(ctx, zoneNameIDMapper, toDelete); err != nil {
+			return err
+		}
 	}
 
-	// step3: handle delete record
-	if err := p.deletePrivateZoneRecords(ctx, zoneNameIDMapper, changes.Delete); err != nil {
-		return err
+	if len(toCreate) > 0 {
+		if err := p.createPrivateZoneRecords(ctx, zoneNameIDMapper, toCreate); err != nil {
+			return err
+		}
 	}
 
-	// step4: handle update record
-	if err := p.updatePrivateZoneRecords(ctx, zoneNameIDMapper, changes.UpdateNew); err != nil {
-		return err
-	}
+	// if len(toUpdate) > 0 {
+	// 	if err := p.updatePrivateZoneRecords(ctx, zoneNameIDMapper, toUpdate); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }
 
 func (p *VolcengineProvider) createPrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
 	if len(endpoints) == 0 {
-		log.Info("No endpoints to create")
+		logrus.Info("No endpoints to create")
 		return nil
 	}
 
 	endpointsByZone := separateCreateChange(zones, endpoints)
+	recordsMap := make(map[int64][]privatezone.CRecord)
 	for zid, ep := range endpointsByZone {
 		zidInt, err := strconv.ParseInt(zid, 10, 64)
 		if err != nil {
-			log.Errorf("Failed to parse zid: %s", zid)
+			logrus.Errorf("Failed to parse zid: %s", zid)
 			return err
 		}
+		recordsMap[zidInt] = make([]privatezone.CRecord, 0)
+
 		for _, record := range ep {
 			for _, target := range record.Targets {
-				if err := p.pzClient.CreatePrivateZoneRecord(ctx, zidInt, removeZonename(record.DNSName, zones[zid]), record.RecordType, target); err != nil {
-					log.Errorf("Failed to create private zone record: %s", err)
-					return err
-				}
+				value := target // 创建局部变量拷贝
+				host := removeZonename(record.DNSName, zones[zid])
+				recordsMap[zidInt] = append(recordsMap[zidInt], privatezone.CRecord{
+					Host:  &host,
+					Line:  &record.RecordType,
+					Type:  &record.RecordType,
+					Value: &value, // 使用局部变量的地址
+				})
 			}
+		}
+	}
+	for zid, records := range recordsMap {
+		if len(records) == 0 {
+			continue
+		}
+		if err := p.pzClient.BatchCreatePrivateZoneRecord(ctx, zid, records); err != nil {
+			logrus.Errorf("Failed to batch create private zone record: %s", err)
+			return err
 		}
 	}
 	return nil
@@ -195,7 +250,7 @@ func separateCreateChange(zoneMap provider.ZoneIDName, endpoints []*endpoint.End
 			createsByZone[zone] = append(createsByZone[zone], ep)
 			continue
 		}
-		log.Debugf("Skipping DNS creation of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
+		logrus.Debugf("Skipping DNS creation of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
 	}
 
 	return createsByZone
@@ -221,7 +276,7 @@ func (p *VolcengineProvider) deletePrivateZoneRecords(ctx context.Context, zoneM
 			deletesByZone[zone] = append(deletesByZone[zone], ep)
 			continue
 		}
-		log.Debugf("Skipping DNS deletion of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
+		logrus.Debugf("Skipping DNS deletion of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
 	}
 	for zone, deletes := range deletesByZone {
 		if len(deletes) == 0 {
@@ -229,12 +284,12 @@ func (p *VolcengineProvider) deletePrivateZoneRecords(ctx context.Context, zoneM
 		}
 		zidInt, err := strconv.ParseInt(zone, 10, 64)
 		if err != nil {
-			log.Errorf("Failed to parse zid: %s", zone)
+			logrus.Errorf("Failed to parse zid: %s", zone)
 			return err
 		}
 		for _, record := range deletes {
 			if err := p.pzClient.DeletePrivateZoneRecord(ctx, zidInt, record.DNSName); err != nil {
-				log.Errorf("Failed to delete private zone record: %s", err)
+				logrus.Errorf("Failed to delete private zone record: %s", err)
 				return err
 			}
 		}
@@ -242,21 +297,21 @@ func (p *VolcengineProvider) deletePrivateZoneRecords(ctx context.Context, zoneM
 	return nil
 }
 
-func (p *VolcengineProvider) updatePrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
-	// update record must use record id
-	endpointsByZone := separateCreateChange(zones, endpoints)
-	for zone, updates := range endpointsByZone {
-		zidInt, err := strconv.ParseInt(zone, 10, 64)
-		if err != nil {
-			log.Errorf("Failed to parse zid: %s", zone)
-			return err
-		}
-		for _, record := range updates {
-			if err := p.pzClient.UpdatePrivateZoneRecord(ctx, zidInt, record.DNSName, record.Targets); err != nil {
-				log.Errorf("Failed to update private zone record: %s", err)
-				return err
-			}
-		}
-	}
-	return nil
-}
+// func (p *VolcengineProvider) updatePrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
+// 	// update record must use record id
+// 	endpointsByZone := separateCreateChange(zones, endpoints)
+// 	for zone, updates := range endpointsByZone {
+// 		zidInt, err := strconv.ParseInt(zone, 10, 64)
+// 		if err != nil {
+// 			log.Errorf("Failed to parse zid: %s", zone)
+// 			return err
+// 		}
+// 		for _, record := range updates {
+// 			if err := p.pzClient.UpdatePrivateZoneRecord(ctx, zidInt, record.DNSName, record.Targets); err != nil {
+// 				log.Errorf("Failed to update private zone record: %s", err)
+// 				return err
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }

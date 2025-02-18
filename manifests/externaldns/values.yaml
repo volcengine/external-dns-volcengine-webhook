@@ -1,0 +1,51 @@
+serviceAccount:
+  create: true
+  name: external-dns
+
+publicConfig:
+  deployMode: "Unmanaged"
+  deployNodeType: "Node"
+
+  image:
+    controller:
+      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns
+      tag: v0.15.1
+      pullPolicy: IfNotPresent
+    provider:
+      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns-provider
+      tag: v0.15.1
+      pullPolicy: Always
+
+
+
+userConfig:
+  Resources:
+    controller:
+      Requests:
+        Cpu: "250m"
+        Memory: "128Mi"
+      Limits:
+        Cpu: "500m" 
+        Memory: "256Mi"
+    provider:
+      Requests:
+        Cpu: "250m"
+        Memory: "128Mi"
+      Limits:
+        Cpu: "500m" 
+        Memory: "256Mi"
+  args:
+    controller:
+      interval: 30s
+      logLevel: info
+      domainFilter: 
+    provider:
+      enableDebug: false
+    
+
+  env:
+    vpc: 
+    region: 
+    endpoint: 
+    ak: 
+    sk: 
