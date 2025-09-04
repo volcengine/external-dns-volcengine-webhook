@@ -18,8 +18,8 @@ Prerequisites
 - Helm 3.x installed
 - Volcengine API key (AK/SK) and VPC information ready
 
-## Deploy with Helm
-1. Create ak sk with private_zone api permissions
+## Prepare Volcengine API AK SK
+Volcengine API key (AK/SK) should be created with the following permissions:
 ```json
 {
   "Statement": [
@@ -36,7 +36,8 @@ Prerequisites
 }
 ```
 
-2. Export environment variables
+## Deploy with Helm
+1. Export environment variables
 ```shell
    export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk"
    export VOLCENGINE_VPC="your-vpc-id"
@@ -45,7 +46,7 @@ Prerequisites
    export TARGET_DOMAINS="{test.com,test2.com}"
 ```
 
-3. Create the Secret
+2. Create the Secret
 ```shell
    kubectl create secret generic ${VOLCENGINE_SECRET_NAME} \
    --from-literal=access-key=${VOLCENGINE_AK} \
@@ -53,7 +54,7 @@ Prerequisites
    --namespace kube-system
 ```
 
-4. Install the chart
+3. Install the chart
 ```shell
    helm upgrade --install external-dns \
    manifests/externaldns \
@@ -67,7 +68,7 @@ Prerequisites
    --set publicConfig.image.provider.repository=volcengine/external-dns-volcengine-webhook
 ```
 
-5. Verify
+4. Verify
 ```shell
    helm list -n kube-system
    kubectl get pods -n kube-system -l app.kubernetes.io/name=external-dns
