@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    vke.volcengine.com/ingress-type: ingress-nginx
+    external-dns.alpha.kubernetes.io/ttl: "300"
+  name: nginx-ingress-external
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nginx-ingress-external.test.com
+      http:
+        paths:
+          - backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80
+            path: /path1
+            pathType: Prefix
+    - host: nginx-ingress-external2.test.com
+      http:
+        paths:
+          - backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80
+            path: /path2
+            pathType: Prefix

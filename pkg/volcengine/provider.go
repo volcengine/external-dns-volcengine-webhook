@@ -78,34 +78,7 @@ func (p *VolcengineProvider) Records(ctx context.Context) (endpoints []*endpoint
 func Records(ctx context.Context, pz privateZoneAPI, vpc string) (endpoints []*endpoint.Endpoint, err error) {
 	logrus.Debugf("Retrieving Volcengine Private Zone records")
 
-	// step 1: get all private zones
-	// zones, err := pz.GetPrivateZones(ctx)
-	// if err != nil {
-	// 	log.Errorf("Failed to list volcengine privatezones: %v", err)
-	// 	return nil, err
-	// }
-
-	// vpcZones := []privatezone.TopPrivateZoneResponse{}
-	// for _, zone := range zones {
-	// 	// filter out private zones
-	// 	zoneInfo, err := pz.GetPrivateZoneInfo(ctx, *zone.ZID)
-	// 	if err != nil {
-	// 		log.Errorf("Failed to get privatezone infos: %v", err)
-	// 		return nil, err
-	// 	}
-
-	// 	if vpc == "" {
-	// 		vpcZones = append(vpcZones, zone)
-	// 		continue
-	// 	}
-
-	// 	for _, bindVPC := range zoneInfo.BindVPCs {
-	// 		if *bindVPC.ID == vpc {
-	// 			log.Debugf("get matched zone: %s, vpc: %s", *zoneInfo.ZoneName, *bindVPC.ID)
-	// 			vpcZones = append(vpcZones, zone)
-	// 		}
-	// 	}
-	// }
+	// step 1: get all private zones bind to vpc
 	vpcZones, err := pz.ListPrivateZones(ctx, vpc)
 	if err != nil {
 		logrus.Errorf("Failed to list volcengine privatezones: %v", err)
@@ -129,6 +102,7 @@ func Records(ctx context.Context, pz privateZoneAPI, vpc string) (endpoints []*e
 			// Domain: record.Host + "." + zoneInfo.ZoneName
 			// Type:  record.Type
 			// Target: record.Value
+			// TTL: record.TTL
 			endpoints = append(endpoints, &endpoint.Endpoint{
 				DNSName:    fmt.Sprintf("%s.%s", *record.Host, *zone.ZoneName),
 				RecordType: *record.Type,
@@ -155,13 +129,13 @@ func (p *VolcengineProvider) ApplyChanges(ctx context.Context, changes *plan.Cha
 func (p *VolcengineProvider) applyChangesForPrivateZone(ctx context.Context, changes *plan.Changes) error {
 	logrus.Infof("ApplyChanges to Volcengine Private Zone: %++v", *changes)
 
-	// step1: get all private zones
-	zones, err := p.pzClient.GetPrivateZones(ctx)
+	// step1: get all private zones bind to vpc
+	vpcZones, err := p.pzClient.ListPrivateZones(ctx, p.vpcID)
 	if err != nil {
 		return err
 	}
 	zoneNameIDMapper := provider.ZoneIDName{}
-	for _, zoneinfo := range zones {
+	for _, zoneinfo := range vpcZones {
 		zid := *zoneinfo.ZID
 		zoneNameIDMapper[strconv.FormatInt(zid, 10)] = *zoneinfo.ZoneName
 	}
@@ -216,12 +190,21 @@ func (p *VolcengineProvider) createPrivateZoneRecords(ctx context.Context, zones
 		for _, record := range ep {
 			for _, target := range record.Targets {
 				value := target // 创建局部变量拷贝
-				host := removeZonename(record.DNSName, zones[zid])
+				if record.RecordType == "TXT" {
+					value = p.unescapeTXTRecordValue(value)
+					logrus.Infof("Adding TXT record for zone with value (%s)", value)
+				}
+				host := removeZoneName(record.DNSName, zones[zid])
+				var ttl *int64
+				if record.RecordTTL > 0 {
+					ttlInt64 := int64(record.RecordTTL)
+					ttl = &ttlInt64
+				}
 				recordsMap[zidInt] = append(recordsMap[zidInt], privatezone.CRecord{
 					Host:  &host,
-					Line:  &record.RecordType,
 					Type:  &record.RecordType,
 					Value: &value, // 使用局部变量的地址
+					TTL:   ttl,
 				})
 			}
 		}
@@ -245,9 +228,10 @@ func separateCreateChange(zoneMap provider.ZoneIDName, endpoints []*endpoint.End
 		createsByZone[zid] = make([]*endpoint.Endpoint, 0)
 	}
 	for _, ep := range endpoints {
-		zone, _ := zoneMap.FindZone(ep.DNSName)
+		zone, zoneName := zoneMap.FindZone(ep.DNSName)
 		if zone != "" {
 			createsByZone[zone] = append(createsByZone[zone], ep)
+			logrus.Debugf("Adding DNS creation of endpoint: '%s' type: '%s', zoneId: %s, zoneName: %s", ep.DNSName, ep.RecordType, zone, zoneName)
 			continue
 		}
 		logrus.Debugf("Skipping DNS creation of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
@@ -256,7 +240,7 @@ func separateCreateChange(zoneMap provider.ZoneIDName, endpoints []*endpoint.End
 	return createsByZone
 }
 
-func removeZonename(longDomain, shortDomain string) string {
+func removeZoneName(longDomain, shortDomain string) string {
 	index := strings.Index(longDomain, shortDomain)
 	if index != -1 {
 		return strings.TrimSuffix(longDomain[:index], ".")
@@ -271,9 +255,10 @@ func (p *VolcengineProvider) deletePrivateZoneRecords(ctx context.Context, zoneM
 		deletesByZone[z] = make([]*endpoint.Endpoint, 0)
 	}
 	for _, ep := range endpoints {
-		zone, _ := zoneMap.FindZone(ep.DNSName)
+		zone, zoneName := zoneMap.FindZone(ep.DNSName)
 		if zone != "" {
 			deletesByZone[zone] = append(deletesByZone[zone], ep)
+			logrus.Debugf("Adding DNS deletion of endpoint: '%s' type: '%s', zoneId: %s, zoneName: %s", ep.DNSName, ep.RecordType, zone, zoneName)
 			continue
 		}
 		logrus.Debugf("Skipping DNS deletion of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
@@ -295,6 +280,14 @@ func (p *VolcengineProvider) deletePrivateZoneRecords(ctx context.Context, zoneM
 		}
 	}
 	return nil
+}
+
+func (p *VolcengineProvider) unescapeTXTRecordValue(value string) string {
+	if strings.HasPrefix(value, "\"heritage=") {
+		// remove \" in txt record value for volcengine privatezone
+		return fmt.Sprintf("%s", strings.Replace(value, "\"", "", -1))
+	}
+	return value
 }
 
 // func (p *VolcengineProvider) updatePrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {

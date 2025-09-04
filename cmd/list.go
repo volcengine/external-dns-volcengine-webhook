@@ -27,8 +27,9 @@ import (
 var (
 	listCmd = &cobra.Command{
 		Use:   "list",
-		Short: "List zone or records",
+		Short: "List private zone records by vpc id",
 		Run: func(cmd *cobra.Command, args []string) {
+			initSDK()
 			listZones()
 		},
 	}
@@ -43,16 +44,8 @@ func init() {
 }
 
 func listZones() {
-	client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("pvz_endpoint"))
 
-	// zones, err := client.GetPrivateZones(context.Background())
-	// if err != nil {
-	// 	fmt.Println("Error:", err)
-	// 	return
-	// }
-	// for _, zone := range zones {
-	// 	fmt.Printf("Zone ID: %d, Zone Name: %s\n", *zone.ZID, *zone.ZoneName)
-	// }
+	client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("endpoint"))
 
 	endpoints, err := volcengine.Records(context.Background(), client, vpcID)
 	if err != nil {

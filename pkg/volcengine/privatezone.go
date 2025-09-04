@@ -22,6 +22,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"volcengine-provider/pkg/utils"
 
 	"github.com/sirupsen/logrus"
 	"github.com/volcengine/volc-sdk-golang/service/privatezone"
@@ -60,7 +61,7 @@ func NewPrivateZoneWrapper(regionID, pvzEndpoint string) *PrivateZoneWrapper {
 	vc.SetHost(pvzEndpoint)
 	vc.SetRegion(regionID)
 	vc.Volc.SetScheme("https")
-	logrus.Debugf("pvz: region:%s, endpoint:%s, ak:%s, sk:%s", regionID, pvzEndpoint, os.Getenv("VOLC_ACCESSKEY"), os.Getenv("VOLC_SECRETKEY"))
+	logrus.Debugf("pvz: region:%s, endpoint:%s, ak:%s, sk:%s", regionID, pvzEndpoint, utils.MaskSecret(os.Getenv("VOLC_ACCESSKEY")), utils.MaskSecret(os.Getenv("VOLC_SECRETKEY")))
 	return &PrivateZoneWrapper{
 		client: privatezone.NewClient(vc),
 	}

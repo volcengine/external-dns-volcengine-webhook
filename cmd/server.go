@@ -22,13 +22,14 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"volcengine-provider/pkg/utils"
 	"volcengine-provider/pkg/volcengine"
-
+	
 	log "github.com/sirupsen/logrus"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"sigs.k8s.io/external-dns/endpoint"
+	externaldnsendpoint "sigs.k8s.io/external-dns/endpoint"
 	"sigs.k8s.io/external-dns/provider"
 	"sigs.k8s.io/external-dns/provider/webhook/api"
 )
@@ -111,10 +112,10 @@ func startServer() {
 	// Print debug logs if enabled
 	if debug {
 		log.SetLevel(log.DebugLevel)
-		log.Debugf("Starting server with configuration: port=%d, debug=%t, access_key=%s, access_secret=%s vpc=%s, endpoint=%s, region=%s \n", port, debug, accessKey, accessSecret, vpcID, pvzEndpoint, regionID)
+		log.Debugf("Starting server with configuration: port=%d, debug=%t, access_key=%s, access_secret=%s vpc=%s, endpoint=%s, region=%s \n", port, debug, utils.MaskSecret(accessKey), utils.MaskSecret(accessSecret), vpcID, pvzEndpoint, regionID)
 	}
 
-	domainfilter := endpoint.DomainFilter{}
+	domainfilter := externaldnsendpoint.DomainFilter{}
 	zoneidfilter := provider.ZoneIDFilter{}
 
 	provider, err := volcengine.NewVolcengineProvider(domainfilter, zoneidfilter, volcengine.VolcengineConfig{

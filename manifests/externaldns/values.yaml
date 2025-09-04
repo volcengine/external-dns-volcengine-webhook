@@ -3,22 +3,26 @@ serviceAccount:
   name: external-dns
 
 publicConfig:
-  deployMode: "Unmanaged"
-  deployNodeType: "Node"
-
   image:
     controller:
-      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns
-      tag: v0.15.1
+      repository: registry.k8s.io/external-dns/external-dns
+      tag: v0.18.0
       pullPolicy: IfNotPresent
     provider:
-      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns-provider
-      tag: v0.15.1
-      pullPolicy: Always
-
-
+      repository: volcengine/external-dns-provider
+      tag: v0.1.0
+      pullPolicy: IfNotPresent
 
 userConfig:
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+    - key: node-role.kubernetes.io/master
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  nodeSelector:
+    kubernetes.io/os: linux
   Resources:
     controller:
       Requests:
@@ -36,16 +40,22 @@ userConfig:
         Memory: "256Mi"
   args:
     controller:
+      sources:
+        - service
+        - ingress
       interval: 30s
       logLevel: info
-      domainFilter: 
+      domainFilters: []       # domain filter, if empty, will filter all domain
+      labelFilter:            # @schema type: [string,null]; default: null
+      policy: upsert-only     # @schema enum:[create-only, sync, upsert-only]; type:string; default: "upsert-only"
+      registry: txt           # @schema enum:[txt, noop]; default: "txt"
+      txtOwnerId:             # @schema type:[string, null]; default: null
+      txtPrefix:              # @schema type:[string, null]; default: null
     provider:
       enableDebug: false
-    
-
   env:
-    vpc: 
-    region: 
-    endpoint: 
-    ak: 
-    sk: 
+    provider:
+      vpc:
+      region:
+      endpoint:
+      secretName:

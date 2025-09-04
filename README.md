@@ -1,113 +1,153 @@
-# 概述
-本项目 Volcengine Provider 是一个专为 ExternalDNS 设计的 Webhook 类型的提供商，其主要功能是将 ExternalDNS 与火山引擎（Volcengine）的 DNS 服务进行无缝集成。借助 Webhook 机制，ExternalDNS 能够把 DNS 记录的创建、更新以及删除操作传递给本服务，而本服务会负责将这些操作转化为针对火山引擎 DNS 服务的具体操作。
+# Overview
+Volcengine Provider is a webhook-based provider built for ExternalDNS.
+It bridges ExternalDNS and Volcengine DNS so that every DNS record
+(create, update, delete) emitted by ExternalDNS is translated into the
+corresponding Volcengine DNS API call through a lightweight webhook
+server.
 
-# 特性
-- Webhook 集成：支持与 ExternalDNS 的 Webhook 集成，从而实现 DNS 记录的动态管理。
-- 火山引擎 DNS 服务对接：可将 DNS 记录操作转发至火山引擎的 DNS 服务。
-- 灵活配置：既支持通过配置文件进行详细配置，也支持利用环境变量实现灵活配置。
+# Features
+- Webhook integration – dynamic DNS-record management via ExternalDNS
+webhooks
+- Volcengine DNS native – all operations are forwarded to Volcengine
+DNS service
+- Flexible configuration – configurable through files or environment
+variables
 
-# 安装
-前提条件
-- 已安装 Helm 3.x
-- 已配置火山引擎 API 密钥和 VPC 信息
+# Installation
+Prerequisites
+- Helm 3.x installed
+- Volcengine API key (AK/SK) and VPC information ready
 
-## 使用 Helm 部署
-1. 设置环境变量（或直接替换命令中的参数值）
-```shell
-   export VOLCENGINE_ACCESS_KEY="your-access-key"
-   export VOLCENGINE_ACCESS_SECRET="your-access-secret"
-   export VOLCENGINE_VPC="your-vpc-id"
-   export VOLCENGINE_REGION="cn-beijing"  # 根据实际情况修改
-   export TARGET_DOMAIN="test.com"
+## Deploy with Helm
+1. Create ak sk with private_zone api permissions
+```json
+{
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "private_zone:*"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}
 ```
-2. 执行 Helm 安装
+
+2. Export environment variables
+```shell
+   export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk"
+   export VOLCENGINE_VPC="your-vpc-id"
+   export VOLCENGINE_REGION="cn-beijing"
+   export VOLCENGINE_ENDPOINT="open.volcengineapi.com"
+   export TARGET_DOMAINS="{test.com,test2.com}"
+```
+
+3. Create the Secret
+```shell
+   kubectl create secret generic ${VOLCENGINE_SECRET_NAME} \
+   --from-literal=access-key=${VOLCENGINE_AK} \
+   --from-literal=secret-key=${VOLCENGINE_SK} \
+   --namespace kube-system
+```
+
+4. Install the chart
 ```shell
    helm upgrade --install external-dns \
    manifests/externaldns \
    --namespace kube-system \
-   --set userConfig.env.ak=${VOLCENGINE_ACCESS_KEY} \
-   --set userConfig.env.sk=${VOLCENGINE_ACCESS_SECRET} \
-   --set userConfig.env.vpc=${VOLCENGINE_VPC} \
-   --set userConfig.env.region=${VOLCENGINE_REGION} \
-   --set userConfig.env.endpoint=open.volcengineapi.com \
-   --set userConfig.args.controller.domainFilter=${TARGET_DOMAIN} \  # 替换实际域名
-   --set userConfig.args.provider.enableDebug=true \
-   --set publicConfig.image.controller.repository=cr-helm-test-cn-beijing.cr.volces.com/test/external-dns \  # 替换实际镜像地址
-   --set publicConfig.image.provider.repository=cr-helm-test-cn-beijing.cr.volces.com/test/external-dns-volcengine-webhook
+   --set userConfig.env.provider.secretName=${VOLCENGINE_SECRET_NAME} \
+   --set userConfig.env.provider.vpc=${VOLCENGINE_VPC} \
+   --set userConfig.env.provider.region=${VOLCENGINE_REGION} \
+   --set userConfig.env.provider.endpoint=${VOLCENGINE_ENDPOINT} \
+   --set userConfig.args.controller.domainFilter=${TARGET_DOMAINS} \
+   --set publicConfig.image.controller.repository=registry.k8s.io/external-dns/external-dns \
+   --set publicConfig.image.provider.repository=volcengine/external-dns-volcengine-webhook
 ```
 
-3. 验证部署
+5. Verify
 ```shell
    helm list -n kube-system
    kubectl get pods -n kube-system -l app.kubernetes.io/name=external-dns
 ```
 
-## Helm 参数说明
-|参数名称|描述|默认值|必填|
-|-------|--|------|---|
-|userConfig.env.ak|火山引擎 Access Key|无|是|
-|userConfig.env.sk|火山引擎 Access Secret|无|是|
-|userConfig.env.vpc|火山引擎 VPC ID|无|是|
-|userConfig.env.region|火山引擎区域|cn-beijing|是|
-|userConfig.env.endpoint|火山引擎 API 端点|open.volcengineapi.com|是|
-|userConfig.args.controller.domainFilter|要管理的域名过滤器（支持逗号分隔多个域名）|cluster.local|是|
-|userConfig.args.provider.enableDebug|是否启用调试模式|false|否|
-|publicConfig.image.controller.repository|ExternalDNS 控制器镜像地址|暂时未定|否|
-|publicConfig.image.provider.repository|Volcengine Webhook Provider 镜像地址|暂时未定|否|
+## Helm parameters
+| Parameter                                | Description                                                                                                                                                               | Default                                    | Required |
+|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|----------|
+| userConfig.env.provider.secretName       | Kubernetes secret that contains Volcengine Access Key (access-key) and Secret Key (secret-key)                                                                            | --                                         | yes      |
+| userConfig.env.provider.vpc              | Volcengine VPC identifier where the DNS zone is located.                                                                                                                  | --                                         | yes      |
+| userConfig.env.provider.region           | Volcengine region in which the DNS zone resides.                                                                                                                          | cn-beijing                                 | yes      |
+| userConfig.env.provider.endpoint         | Custom Volcengine OpenAPI endpoint (overrides built-in regional endpoint).                                                                                                | open.volcengineapi.com                     | yes      |
+| userConfig.args.controller.domainFilters | Limit possible target zones by a list of domain suffixes; specify multiple times or use comma-separated values (same as --domain-filter).                                 | --                                         | yes      |
+| userConfig.args.controller.policy        | How DNS records are synchronized between source and provider. Valid values: sync (create/update/delete) and upsert-only (create/update, never delete) (same as --policy). | upsert-only                                | no       |
+| userConfig.args.controller.registry      | Registry implementation used to keep track of DNS record ownership. Valid values: txt (default TXT registry) or noop (no ownership records) (same as --registry).         | txt                                        | no       |
+| userConfig.args.controller.txtOwnerId    | Identifier used as the owner for TXT registry records; must be unique across concurrent ExternalDNS instances (same as --txt-owner-id).                                   | --                                         | no       |
+| userConfig.args.controller.txtPrefix     | Prefix added to ownership TXT record names to avoid collisions with real DNS records (same as --txt-prefix).                                                              | --                                         | no       |
+| userConfig.args.provider.enableDebug     | Enable verbose debug logging in the Volcengine webhook provider.                                                                                                          | false                                      | no       |
+| publicConfig.image.controller.repository | Container image for the ExternalDNS controller.                                                                                                                           | registry.k8s.io/external-dns/external-dns  | no       |
+| publicConfig.image.provider.repository   | Container image for the Volcengine webhook provider.                                                                                                                      | volcengine/external-dns-volcengine-webhook | no       |
 
-提示：可通过 --set 参数覆盖默认值，或使用 -f values.yaml 文件进行批量配置。
+> Tip: override defaults with --set or supply a custom values.yaml via -f.
 
-values.yaml示例
+# Examples
+external-dns default support loadbalancer type service and ingress to create dns record.
+## Service(Loadbalancer Type)
+```shell
+kubectl apply -f nginx-service.yaml
+```
 ```yaml
-serviceAccount:
-  create: true
-  name: external-dns
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: nginx.test.com.  # expect to create record with hostname nginx.test.com
+    external-dns.alpha.kubernetes.io/ttl: "300"                 # expect to set ttl to 300
+spec:
+  selector:
+    app: nginx     
+  ports:
+    - protocol: TCP
+      port: 80    
+      targetPort: 80   
+  type: LoadBalancer   # LoadBalancer
+```
 
-publicConfig:
-  deployMode: "Unmanaged"
-  deployNodeType: "Node"
-
-  image:
-    controller:
-      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns
-      tag: v0.15.1
-      pullPolicy: IfNotPresent
-    provider:
-      repository: cr-helm-test-cn-beijing.cr.volces.com/test/external-dns-provider
-      tag: v0.15.1
-      pullPolicy: Always
-
-
-
-userConfig:
-  Resources:
-    controller:
-      Requests:
-        Cpu: "250m"
-        Memory: "128Mi"
-      Limits:
-        Cpu: "500m"
-        Memory: "256Mi"
-    provider:
-      Requests:
-        Cpu: "250m"
-        Memory: "128Mi"
-      Limits:
-        Cpu: "500m"
-        Memory: "256Mi"
-  args:
-    controller:
-      interval: 30s
-      logLevel: info
-      domainFilter:
-    provider: 
-      enableDebug: false
-
-
-  env:
-   vpc:
-   region:
-   endpoint:
-   ak:
-   sk: 
+## Ingress
+```shell
+kubectl apply -f nginx-ingress.yaml
+```
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    vke.volcengine.com/ingress-type: ingress-nginx
+    external-dns.alpha.kubernetes.io/ttl: "300"
+  name: nginx-ingress-external
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nginx-ingress-external.test.com
+      http:
+        paths:
+          - backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80
+            path: /path1
+            pathType: Prefix
+    - host: nginx-ingress-external2.test.com
+      http:
+        paths:
+          - backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80
+            path: /path2
+            pathType: Prefix
 ```

@@ -17,6 +17,7 @@ package volcengine
 
 import (
 	"os"
+	"volcengine-provider/pkg/utils"
 
 	"github.com/sirupsen/logrus"
 	"github.com/volcengine/volc-sdk-golang/service/dns"
@@ -37,7 +38,7 @@ func newCzWrapper(region, endpoint string) *czWrapper {
 	volcCaller.Volc.ServiceInfo.Credentials.Region = region
 	volcCaller.Volc.SetAccessKey(os.Getenv("VOLC_ACCESSKEY"))
 	volcCaller.Volc.SetSecretKey(os.Getenv("VOLC_SECRETKEY"))
-	logrus.Debugf("cloudZone: Region: %s, endpoint: %s, ak:%s, sk:%s", volcCaller.Volc.ServiceInfo.Credentials.Region, volcCaller.Volc.ServiceInfo.Host, os.Getenv("VOLC_ACCESSKEY"), os.Getenv("VOLC_SECRETKEY"))
+	logrus.Debugf("cloudZone: Region: %s, endpoint: %s, ak:%s, sk:%s", volcCaller.Volc.ServiceInfo.Credentials.Region, volcCaller.Volc.ServiceInfo.Host, utils.MaskSecret(os.Getenv("VOLC_ACCESSKEY")), utils.MaskSecret(os.Getenv("VOLC_SECRETKEY")))
 	return &czWrapper{
 		client: dns.NewClient(volcCaller),
 	}

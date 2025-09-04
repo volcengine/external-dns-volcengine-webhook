@@ -5,10 +5,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "external-dns.labels" . | nindent 4 }}
-    addon.vke.volcengine.com/status-check: {{ .Release.Name }}
     k8s-app: {{ .Release.Name }}
 spec:
-  replicas: {{ ((lookup "apps/v1" "Deployment" "kube-system" "external-dns").spec).replicas | default 1 }}
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,83 +19,41 @@ spec:
     metadata:
       labels:
         {{- include "external-dns.labels" . | nindent 8 }}
-        addon.vke.volcengine.com/status-check: {{ .Release.Name }}
         k8s-app: {{ .Release.Name }}
     spec:
-      {{- if eq .Values.publicConfig.deployNodeType "VirtualNode" }}
-      dnsPolicy: ClusterFirst
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node.kubernetes.io/instance-type
-                    operator: In
-                    values:
-                      - virtual-node
-                  - key: "node.kubernetes.io/instance-type"
-                    operator: NotIn
-                    values:
-                      - "dcp-node"
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - preference:
-                matchExpressions:
-                  - key: cluster.vke.volcengine.com/enable-autoscaling
-                    operator: NotIn
-                    values:
-                      - "true"
-              weight: 100
+      {{- with.Values.userConfig.tolerations }}
       tolerations:
-        - key: vci.vke.volcengine.com/node-type
-          operator: Exists
-        - key: CriticalAddonsOnly
-          operator: Exists
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/control-plane
-          effect: NoSchedule
-      {{- else }}
-      dnsPolicy: ClusterFirst
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: "node.kubernetes.io/instance-type"
-                    operator: NotIn
-                    values:
-                      - "dcp-node"
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - preference:
-                matchExpressions:
-                  - key: cluster.vke.volcengine.com/enable-autoscaling
-                    operator: NotIn
-                    values:
-                      - "true"
-              weight: 100
-      tolerations:
-        - key: CriticalAddonsOnly
-          operator: Exists
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/control-plane
-          effect: NoSchedule
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "external-dns.serviceAccountName" . }}
+      {{- with.Values.userConfig.nodeSelector }}
       nodeSelector:
-        kubernetes.io/os: linux
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: controller
         image: {{ .Values.publicConfig.image.controller.repository }}:{{ .Values.publicConfig.image.controller.tag }}
         args:
-        - --source=service
         - --provider=webhook
-        - --interval={{ .Values.userConfig.args.controller.interval }}
         - --log-level={{ .Values.userConfig.args.controller.logLevel }}
-        - --publish-internal-services
-        - --policy=sync
-        - --domain-filter={{ .Values.userConfig.args.controller.domainFilter }}
-        - --registry=noop
+        {{- range .Values.userConfig.args.controller.sources }}
+        - --source={{ . }}
+        {{- end }}
+        - --interval={{ .Values.userConfig.args.controller.interval }}
+        - --policy={{ .Values.userConfig.args.controller.policy }}
+        {{- range .Values.userConfig.args.controller.domainFilters }}
+        - --domain-filter={{ . }}
+        {{- end }}
+        {{- if .Values.labelFilter }}
+        - --label-filter={{ .Values.userConfig.args.controller.labelFilter }}
+        {{- end }}
+        - --registry={{ .Values.userConfig.args.controller.registry }}
+        {{- if .Values.userConfig.args.controller.txtOwnerId }}
+        - --txt-owner-id={{.Values.userConfig.args.controller.txtOwnerId }}
+        {{- end }}
+        {{- if.Values.userConfig.args.controller.txtPrefix }}
+        - --txt-prefix={{.Values.userConfig.args.controller.txtPrefix }}
+        {{- end }}
         resources:
           limits:
             memory: {{ .Values.userConfig.Resources.controller.Limits.Memory }}
@@ -104,6 +61,28 @@ spec:
           requests:
             cpu: {{ .Values.userConfig.Resources.controller.Requests.Cpu }}
             memory: {{ .Values.userConfig.Resources.controller.Requests.Memory }}
+        ports:
+        - name: http
+          containerPort: 7979
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
       - name: provider
         image: {{ .Values.publicConfig.image.provider.repository }}:{{ .Values.publicConfig.image.provider.tag }}
         command:
@@ -116,19 +95,19 @@ spec:
         - name: VOLCENGINE_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-credentials
+              name: {{ .Values.userConfig.env.provider.secretName }}
               key: access-key
         - name: VOLCENGINE_ACCESS_SECRET
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-credentials
-              key: access-secret
+              name: {{ .Values.userConfig.env.provider.secretName }}
+              key: secret-key
         - name: VOLCENGINE_VPC
-          value: {{ .Values.userConfig.env.vpc | quote }}
+          value: {{ .Values.userConfig.env.provider.vpc | quote }}
         - name: VOLCENGINE_REGION
-          value: {{ .Values.userConfig.env.region | quote }}
+          value: {{ .Values.userConfig.env.provider.region | quote }}
         - name: VOLCENGINE_ENDPOINT
-          value: {{ .Values.userConfig.env.endpoint | quote }}
+          value: {{ .Values.userConfig.env.provider.endpoint | quote }}
         resources:
           limits:
             memory: {{ .Values.userConfig.Resources.provider.Limits.Memory }}

@@ -17,7 +17,10 @@ package cmd
 
 import (
 	"context"
+	"os"
 	"strconv"
+	"strings"
+
 	"volcengine-provider/pkg/volcengine"
 
 	log "github.com/sirupsen/logrus"
@@ -29,42 +32,77 @@ var (
 	recordCmd = &cobra.Command{
 		Use:   "record",
 		Short: "Add/Delete/List records",
+	}
+	recordAddCmd = &cobra.Command{
+		Use:   "add",
+		Short: "Add record",
 		Run: func(cmd *cobra.Command, args []string) {
-			recordHandler()
+			initSDK()
+			recordAddHandler()
+		},
+	}
+	recordDeleteCmd = &cobra.Command{
+		Use:   "delete",
+		Short: "Delete record",
+		Run: func(cmd *cobra.Command, args []string) {
+			initSDK()
+			recordDelHandler()
+		},
+	}
+	recordListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List record",
+		Run: func(cmd *cobra.Command, args []string) {
+			initSDK()
+			client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("endpoint"))
+			if err := listRecord(client, zone); err != nil {
+				log.Errorf("Failed to show record: %v", err)
+				return
+			}
 		},
 	}
 
-	addrecord []string
-	delrecord []string
-	vpc       string
-	zone      int64
+	record string
+	host   string
+	zone   int64
 )
 
 func init() {
 	rootCmd.AddCommand(recordCmd)
-	recordCmd.PersistentFlags().StringSliceVarP(&addrecord, "add", "a", []string{}, "add record")
-	recordCmd.PersistentFlags().StringSliceVarP(&delrecord, "del", "d", []string{}, "del record")
-	recordCmd.PersistentFlags().StringVarP(&vpc, "vpc", "v", "", "vpc id")
-	recordCmd.PersistentFlags().Int64VarP(&zone, "zone", "z", 321963, "zone id")
+	recordCmd.AddCommand(recordAddCmd)
+	recordCmd.AddCommand(recordDeleteCmd)
+	recordCmd.AddCommand(recordListCmd)
+
+	recordCmd.PersistentFlags().Int64Var(&zone, "zone", 0, "zone id")
+	recordAddCmd.PersistentFlags().StringVar(&record, "record", "", "record, like host,type,target")
+	recordDeleteCmd.PersistentFlags().StringVar(&host, "host", "", "record host")
 }
 
-func recordHandler() {
-	client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("pvz_endpoint"))
+func initSDK() {
+	accessKey := viper.GetString("access_key")
+	accessSecret := viper.GetString("access_secret")
+	os.Setenv("VOLC_SECRETKEY", accessSecret) // 为 sdk 设置环境变量
+	os.Setenv("VOLC_ACCESSKEY", accessKey)
+}
 
-	if len(addrecord) > 0 {
-		for _, record := range addrecord {
-			addRecord(client, record, "A", "1.1.1.1")
-		}
+func recordAddHandler() {
+	client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("endpoint"))
+	recordValue := strings.Split(record, ",")
+	if len(recordValue) != 3 {
+		log.Errorf("Invalid record value: %s", record)
+		return
 	}
-
-	if len(delrecord) > 0 {
-		for _, record := range delrecord {
-			delRecord(client, record)
-		}
+	if err := addRecord(client, recordValue[0], recordValue[1], recordValue[2]); err != nil {
+		log.Errorf("Add record error: %v", err)
+		return
 	}
+}
 
-	if zone != 0 {
-		showRecord(client, zone)
+func recordDelHandler() {
+	client := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("endpoint"))
+	if err := delRecord(client, host); err != nil {
+		log.Errorf("Delete record error: %v", err)
+		return
 	}
 }
 
@@ -88,18 +126,17 @@ func delRecord(client *volcengine.PrivateZoneWrapper, host string) error {
 	return nil
 }
 
-func showRecord(client *volcengine.PrivateZoneWrapper, zoneID int64) error {
-	log.Debugf("show record: %d", zoneID)
+func listRecord(client *volcengine.PrivateZoneWrapper, zoneID int64) error {
+	log.Debugf("list record: %d", zoneID)
 	records, err := client.GetPrivateZoneRecords(context.Background(), strconv.FormatInt(zoneID, 10))
 	if err != nil {
 		log.Errorf("Failed to show record: %v", err)
 		return err
 	}
-	for _, record := range records {
-		if record.Host != nil {
-			log.Infof("host: %s, type: %s, target: %s", *record.Host, *record.Type, *record.Value)
+	for _, r := range records {
+		if r.Host != nil {
+			log.Infof("host: %s, type: %s, target: %s, ttl: %d", *r.Host, *r.Type, *r.Value, *r.TTL)
 		}
-
 	}
 	return nil
 }
