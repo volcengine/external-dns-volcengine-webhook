@@ -40,6 +40,8 @@ Volcengine API key (AK/SK) should be created with the following permissions:
 1. Export environment variables
 ```shell
    export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk"
+   export VOLCENGINE_AK="your-ak"
+   export VOLCENGINE_SK="your-sk"
    export VOLCENGINE_VPC="your-vpc-id"
    export VOLCENGINE_REGION="cn-beijing"
    export VOLCENGINE_ENDPOINT="open.volcengineapi.com"
@@ -93,10 +95,12 @@ Volcengine API key (AK/SK) should be created with the following permissions:
 > Tip: override defaults with --set or supply a custom values.yaml via -f.
 
 # Examples
-external-dns default support loadbalancer type service and ingress to create dns record.
-## Service(Loadbalancer Type)
+external-dns support to reconcile LoadBalancer type service and ingress to dns record by default.
+
+external-dns default reconcile policy is upsert-only.
+## Service(LoadBalancer Type)
 ```shell
-kubectl apply -f nginx-service.yaml
+kubectl apply -f example/service.yaml
 ```
 ```yaml
 apiVersion: v1
@@ -118,7 +122,7 @@ spec:
 
 ## Ingress
 ```shell
-kubectl apply -f nginx-ingress.yaml
+kubectl apply -f example/ingress.yaml
 ```
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -126,12 +130,12 @@ kind: Ingress
 metadata:
   annotations:
     vke.volcengine.com/ingress-type: ingress-nginx
-    external-dns.alpha.kubernetes.io/ttl: "300"
+    external-dns.alpha.kubernetes.io/ttl: "300" # expect to set ttl to 300
   name: nginx-ingress-external
 spec:
   ingressClassName: nginx
   rules:
-    - host: nginx-ingress-external.test.com
+    - host: nginx-ingress-external.test.com   # expect to create record with hostname nginx-ingress-external.test.com
       http:
         paths:
           - backend:
@@ -141,7 +145,7 @@ spec:
                   number: 80
             path: /path1
             pathType: Prefix
-    - host: nginx-ingress-external2.test.com
+    - host: nginx-ingress-external2.test.com  # expect to create record with hostname nginx-ingress-external2.test.com
       http:
         paths:
           - backend:

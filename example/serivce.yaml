@@ -1,39 +1,15 @@
-# 1. 创建 Deployment 运行 Nginx
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-  labels:
-    app: nginx
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: cr-helm-test-cn-beijing.cr.volces.com/vke/nginx:latest
-        ports:
-        - containerPort: 80
----
-# 2. 创建 Service 暴露 Nginx
 apiVersion: v1
 kind: Service
 metadata:
   name: nginx-service
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: nginx.test.com.
-    external-dns.alpha.kubernetes.io/ttl: "300"
+    external-dns.alpha.kubernetes.io/hostname: nginx.test.com.  # expect to create record with hostname nginx.test.com
+    external-dns.alpha.kubernetes.io/ttl: "300"                 # expect to set ttl to 300
 spec:
   selector:
-    app: nginx  # 匹配 Deployment 的 Pod 标签
+    app: nginx
   ports:
     - protocol: TCP
-      port: 80         # Service 端口
-      targetPort: 80   # 容器端口
+      port: 80
+      targetPort: 80
   type: LoadBalancer   # LoadBalancer

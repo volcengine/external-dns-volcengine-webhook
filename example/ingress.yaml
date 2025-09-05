@@ -3,12 +3,12 @@ kind: Ingress
 metadata:
   annotations:
     vke.volcengine.com/ingress-type: ingress-nginx
-    external-dns.alpha.kubernetes.io/ttl: "300"
+    external-dns.alpha.kubernetes.io/ttl: "300" # expect to set ttl to 300
   name: nginx-ingress-external
 spec:
   ingressClassName: nginx
   rules:
-    - host: nginx-ingress-external.test.com
+    - host: nginx-ingress-external.test.com   # expect to create record with hostname nginx-ingress-external.test.com
       http:
         paths:
           - backend:
@@ -18,7 +18,7 @@ spec:
                   number: 80
             path: /path1
             pathType: Prefix
-    - host: nginx-ingress-external2.test.com
+    - host: nginx-ingress-external2.test.com  # expect to create record with hostname nginx-ingress-external2.test.com
       http:
         paths:
           - backend:
