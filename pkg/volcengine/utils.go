@@ -2,6 +2,8 @@ package volcengine
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
+	"github.com/volcengine/volcengine-go-sdk/volcengine/response"
 	"strings"
 )
 
@@ -64,6 +66,16 @@ func QueryAll[T any](
 	return all, nil
 }
 
+// TraceOpenAPI trace openapi request and response, merge error and metadata error
+func TraceOpenAPI[T any, R any](apiName string, openapi func() (R, *response.ResponseMetadata, error), req T) (R, error) {
+	resp, metadata, err := openapi()
+	logrus.Tracef("OpenAPI %s request: %+v, resp: %+v, err: %v", apiName, req, resp, err)
+	if err != nil || metadata.Error != nil {
+		return resp, fmt.Errorf("OpenAPI request error: %v, response: %+v", err, metadata)
+	}
+	return resp, nil
+}
+
 func escapeTXTRecordValue(value string) string {
 	if strings.HasPrefix(value, "\"heritage=") {
 		// remove \" in txt record value for volcengine privatezone
@@ -101,4 +113,16 @@ func splitDNSName(dnsName, zoneName string) (host string, domain string) {
 		host = nullHostPrivateZone
 	}
 	return host, domain
+}
+
+type LoggerAdapter struct {
+	*logrus.Entry
+}
+
+func NewLoggerAdapter(logger *logrus.Entry) *LoggerAdapter {
+	return &LoggerAdapter{logger}
+}
+
+func (l *LoggerAdapter) Log(args ...interface{}) {
+	l.Entry.Log(l.Logger.GetLevel(), args...)
 }

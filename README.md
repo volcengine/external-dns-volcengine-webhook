@@ -18,7 +18,7 @@ Prerequisites
 - Helm 3.x installed
 - Volcengine API key (AK/SK) and VPC information ready
 
-## Prepare Volcengine API AK SK
+## [Optional] Prepare Volcengine API AK SK
 Volcengine API key (AK/SK) should be created with the following permissions:
 ```json
 {
@@ -35,6 +35,8 @@ Volcengine API key (AK/SK) should be created with the following permissions:
   ]
 }
 ```
+## [Optional] Prepare Volcengine API OIDC Role
+https://www.volcengine.com/docs/6460/1324604
 
 ## Deploy with Helm
 1. Export environment variables
@@ -77,20 +79,23 @@ Volcengine API key (AK/SK) should be created with the following permissions:
 ```
 
 ## Helm parameters
-| Parameter                                | Description                                                                                                                                                               | Default                                    | Required |
-|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|----------|
-| userConfig.env.provider.secretName       | Kubernetes secret that contains Volcengine Access Key (access-key) and Secret Key (secret-key)                                                                            | --                                         | yes      |
-| userConfig.env.provider.vpc              | Volcengine VPC identifier where the DNS zone is located.                                                                                                                  | --                                         | yes      |
-| userConfig.env.provider.region           | Volcengine region in which the DNS zone resides.                                                                                                                          | cn-beijing                                 | yes      |
-| userConfig.env.provider.endpoint         | Custom Volcengine OpenAPI endpoint (overrides built-in regional endpoint).                                                                                                | open.volcengineapi.com                     | yes      |
-| userConfig.args.controller.domainFilters | Limit possible target zones by a list of domain suffixes; specify multiple times or use comma-separated values (same as --domain-filter).                                 | --                                         | yes      |
-| userConfig.args.controller.policy        | How DNS records are synchronized between source and provider. Valid values: sync (create/update/delete) and upsert-only (create/update, never delete) (same as --policy). | upsert-only                                | no       |
-| userConfig.args.controller.registry      | Registry implementation used to keep track of DNS record ownership. Valid values: txt (default TXT registry) or noop (no ownership records) (same as --registry).         | txt                                        | no       |
-| userConfig.args.controller.txtOwnerId    | Identifier used as the owner for TXT registry records; must be unique across concurrent ExternalDNS instances (same as --txt-owner-id).                                   | --                                         | no       |
-| userConfig.args.controller.txtPrefix     | Prefix added to ownership TXT record names to avoid collisions with real DNS records (same as --txt-prefix).                                                              | --                                         | no       |
-| userConfig.args.provider.enableDebug     | Enable verbose debug logging in the Volcengine webhook provider.                                                                                                          | false                                      | no       |
-| publicConfig.image.controller.repository | Container image for the ExternalDNS controller.                                                                                                                           | registry.k8s.io/external-dns/external-dns  | no       |
-| publicConfig.image.provider.repository   | Container image for the Volcengine webhook provider.                                                                                                                      | volcengine/external-dns-volcengine-webhook | no       |
+| Parameter                                   | Description                                                                                                                                                               | Default                                    | Required |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|----------|
+| userConfig.env.provider.credentialsProvider | Provider used to obtain Volcengine API credentials. Valid values: aksk (default) or irsa                                                                                  | aksk                                       | yes      | 
+| userConfig.env.provider.secretName          | Kubernetes secret that contains Volcengine Access Key (access-key) and Secret Key (secret-key), must set if `credentialsProvider=aksk`                                    | --                                         | no       |
+| userConfig.env.provider.oidcRoleTrn         | Volcengine OpenID Connect (OIDC) role to assume for API access, must set if `credentialsProvider=irsa`                                                                    | --                                         | no       |
+| userConfig.env.provider.vpc                 | Volcengine VPC identifier where the DNS zone is located.                                                                                                                  | --                                         | yes      |
+| userConfig.env.provider.region              | Volcengine region in which the DNS zone resides.                                                                                                                          | cn-beijing                                 | yes      |
+| userConfig.env.provider.privatezoneEndpoint | Custom Volcengine OpenAPI privatezone endpoint (overrides built-in global endpoint).                                                                                      | open.volcengineapi.com                     | yes      |
+| userConfig.env.provider.stsEndpoint         | Custom Volcengine OpenAPI sts endpoint (overrides built-in global endpoint).                                                                                              | cn-beijing                                 | yes      |
+| userConfig.args.controller.domainFilters    | Limit possible target zones by a list of domain suffixes; specify multiple times or use comma-separated values (same as --domain-filter).                                 | --                                         | yes      |
+| userConfig.args.controller.policy           | How DNS records are synchronized between source and provider. Valid values: sync (create/update/delete) and upsert-only (create/update, never delete) (same as --policy). | upsert-only                                | no       |
+| userConfig.args.controller.registry         | Registry implementation used to keep track of DNS record ownership. Valid values: txt (default TXT registry) or noop (no ownership records) (same as --registry).         | txt                                        | no       |
+| userConfig.args.controller.txtOwnerId       | Identifier used as the owner for TXT registry records; must be unique across concurrent ExternalDNS instances (same as --txt-owner-id).                                   | --                                         | no       |
+| userConfig.args.controller.txtPrefix        | Prefix added to ownership TXT record names to avoid collisions with real DNS records (same as --txt-prefix).                                                              | --                                         | no       |
+| userConfig.args.provider.logLevel           | Enable verbose debug logging in the Volcengine webhook provider.                                                                                                          | info                                       | no       |
+| publicConfig.image.controller.repository    | Container image for the ExternalDNS controller.                                                                                                                           | registry.k8s.io/external-dns/external-dns  | no       |
+| publicConfig.image.provider.repository      | Container image for the Volcengine webhook provider.                                                                                                                      | volcengine/external-dns-volcengine-webhook | no       |
 
 > Tip: override defaults with --set or supply a custom values.yaml via -f.
 

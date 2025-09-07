@@ -18,11 +18,11 @@ package volcengine
 import (
 	"context"
 	"fmt"
-	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"strconv"
 
 	"github.com/sirupsen/logrus"
 	"github.com/volcengine/volcengine-go-sdk/service/privatezone"
+	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 	"sigs.k8s.io/external-dns/endpoint"
 	"sigs.k8s.io/external-dns/plan"
@@ -30,8 +30,7 @@ import (
 )
 
 const (
-	defaultEndpoint     = "open.volcengineapi.com"
-	nullHostPrivateZone = "@" // null host for private zone
+	defaultEndpoint = "open.volcengineapi.com"
 )
 
 // Provider is a provider for Volcengine.
@@ -84,6 +83,8 @@ func NewVolcengineProvider(options []Option) (*Provider, error) {
 	return p, nil
 }
 
+// Records returns the list of endpoints for the provider.
+// Implementation for provider.Provider
 func (p *Provider) Records(ctx context.Context) (endpoints []*endpoint.Endpoint, err error) {
 	logrus.Infof("List Volcengine records, vpc: %s, privatezone:%t", p.vpcID, p.privateZone)
 	if p.privateZone {
@@ -92,8 +93,10 @@ func (p *Provider) Records(ctx context.Context) (endpoints []*endpoint.Endpoint,
 	return endpoints, err
 }
 
+// ApplyChanges applies the given changes to the provider.
+// Implementation for provider.Provider
 func (p *Provider) ApplyChanges(ctx context.Context, changes *plan.Changes) error {
-	if changes == nil || len(changes.Create)+len(changes.UpdateNew)+len(changes.UpdateOld) == 0 {
+	if changes == nil {
 		// No op skip
 		return nil
 	}
@@ -186,7 +189,7 @@ func (p *Provider) createPrivateZoneRecords(ctx context.Context, zones provider.
 					Type:   &record.RecordType,
 					Value:  &value, // 使用局部变量的地址
 					TTL:    ttl,
-					Remark: volcengine.String("managed by external-dns"),
+					Remark: volcengine.String(defaultRecordRemark),
 				})
 			}
 		}
@@ -258,22 +261,3 @@ func (p *Provider) deletePrivateZoneRecords(ctx context.Context, zoneMap provide
 	}
 	return nil
 }
-
-// func (p *Provider) updatePrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
-// 	// update record must use record id
-// 	endpointsByZone := separateCreateChange(zones, endpoints)
-// 	for zone, updates := range endpointsByZone {
-// 		zidInt, err := strconv.ParseInt(zone, 10, 64)
-// 		if err != nil {
-// 			log.Errorf("Failed to parse zid: %s", zone)
-// 			return err
-// 		}
-// 		for _, record := range updates {
-// 			if err := p.pzClient.UpdatePrivateZoneRecord(ctx, zidInt, record.DNSName, record.Targets); err != nil {
-// 				log.Errorf("Failed to update private zone record: %s", err)
-// 				return err
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
