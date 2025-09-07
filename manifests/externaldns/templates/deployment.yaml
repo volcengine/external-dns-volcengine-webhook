@@ -90,8 +90,9 @@ spec:
         args:
         - start
         - --port=8888
-        - --debug={{ .Values.userConfig.args.provider.enableDebug }}
+        - --log-level={{ .Values.userConfig.args.provider.logLevel }}
         env:
+        {{- if eq .Values.userConfig.env.provider.credentialsProvider "aksk" }}
         - name: VOLCENGINE_ACCESS_KEY
           valueFrom:
             secretKeyRef:
@@ -102,16 +103,42 @@ spec:
             secretKeyRef:
               name: {{ .Values.userConfig.env.provider.secretName }}
               key: secret-key
+        {{- end }}
+        {{- if eq .Values.userConfig.env.provider.credentialsProvider "irsa" }}
+        - name: VOLCENGINE_ROLE_TRN
+          value: {{ .Values.userConfig.env.provider.oidcRoleTrn | quote }}
+        - name: VOLCENGINE_OIDC_TOKEN_FILE
+          value: /var/run/secrets/vke.volcengine.com/irsa-tokens/token
+        {{- end }}
         - name: VOLCENGINE_VPC
           value: {{ .Values.userConfig.env.provider.vpc | quote }}
         - name: VOLCENGINE_REGION
           value: {{ .Values.userConfig.env.provider.region | quote }}
-        - name: VOLCENGINE_ENDPOINT
-          value: {{ .Values.userConfig.env.provider.endpoint | quote }}
+        - name: VOLCENGINE_PRIVATEZONE_ENDPOINT
+          value: {{ .Values.userConfig.env.provider.privatezoneEndpoint | quote }}
+        - name: VOLCENGINE_STS_ENDPOINT
+          value: {{.Values.userConfig.env.provider.stsEndpoint | quote }}
         resources:
           limits:
             memory: {{ .Values.userConfig.Resources.provider.Limits.Memory }}
             cpu: {{ .Values.userConfig.Resources.provider.Limits.Cpu }}
           requests:
             cpu: {{ .Values.userConfig.Resources.provider.Requests.Cpu }}
-            memory: {{ .Values.userConfig.Resources.provider.Requests.Memory }} 
+            memory: {{ .Values.userConfig.Resources.provider.Requests.Memory }}
+        volumeMounts:
+        {{- if eq .Values.userConfig.env.provider.credentialsProvider "irsa"}}
+        - mountPath: /var/run/secrets/vke.volcengine.com/irsa-tokens
+          name: irsa-oidc-token
+          readOnly: true
+        {{- end }}
+      volumes:
+      {{- if eq .Values.userConfig.env.provider.credentialsProvider "irsa"}}
+      - name: irsa-oidc-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: sts.volcengine.com
+              expirationSeconds: 3600
+              path: token
+      {{- end }}

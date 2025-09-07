@@ -16,23 +16,30 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+
+	"volcengine-provider/cmd/server"
+	"volcengine-provider/cmd/tools"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
-	debug bool
+	logLevel = "info"
 
 	rootCmd = &cobra.Command{
 		Use: "volcengine-provider",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if debug {
-				logrus.SetLevel(logrus.DebugLevel)
-			} else {
-				logrus.SetLevel(logrus.InfoLevel)
+			lev, err := logrus.ParseLevel(logLevel)
+			if err != nil {
+				fmt.Printf("Error parsing log level: %s\n", err)
+				lev = logrus.InfoLevel
 			}
+			logrus.SetLevel(lev)
+			logrus.SetFormatter(&logrus.TextFormatter{})
 		},
 	}
 )
@@ -45,6 +52,24 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "启用 debug 模式")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", logLevel, "log level")
+	rootCmd.AddCommand(server.StartCmd)
+	rootCmd.AddCommand(tools.RecordCmd)
+
+	// Configure Viper
+	viper.SetConfigName("config")                   // Name of the config file (without extension)
+	viper.SetConfigType("yaml")                     // Config file type
+	viper.AddConfigPath(".")                        // Look for config in the current directory
+	viper.AddConfigPath("/etc/volcengineprovider/") // Optionally look in /etc
+
+	// Bind environment variables
+	viper.SetEnvPrefix("VOLCENGINE") // Prefix for environment variables
+	viper.BindEnv("access_key")
+	viper.BindEnv("access_secret")
+	viper.BindEnv("vpc")
+	viper.BindEnv("region")
+	viper.BindEnv("privatezone_endpoint")
+	viper.BindEnv("sts_endpoint")
+	viper.BindEnv("oidc_token_file")
+	viper.BindEnv("role_trn")
 }

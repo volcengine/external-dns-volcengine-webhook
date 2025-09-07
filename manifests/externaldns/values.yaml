@@ -10,7 +10,7 @@ publicConfig:
       pullPolicy: IfNotPresent
     provider:
       repository: volcengine/external-dns-provider
-      tag: v0.1.0
+      tag: v0.1.1
       pullPolicy: IfNotPresent
 
 userConfig:
@@ -52,10 +52,13 @@ userConfig:
       txtOwnerId:             # @schema type:[string, null]; default: null
       txtPrefix:              # @schema type:[string, null]; default: null
     provider:
-      enableDebug: false
+      logLevel: false
   env:
     provider:
       vpc:
-      region:
-      endpoint:
+      region: cn-beijing
+      privatezoneEndpoint: open.volcengineapi.com
+      stsEndpoint: open.volcengineapi.com
+      credentialsProvider: aksk     # @schema enum:[aksk, irsa]; default: "aksk"
       secretName:
+      oidcRoleTrn:
