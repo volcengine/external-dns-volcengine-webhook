@@ -158,13 +158,8 @@ func (w *PrivateZoneWrapper) CreatePrivateZoneRecord(ctx context.Context, zoneID
 	}
 	resp, err := w.client.CreateRecordWithContext(ctx, request)
 	logrus.Tracef("Create record request: %+v, resp: %+v", request, resp)
-	if err != nil {
-		logrus.Errorf("Failed to create volcengine record: %v", err)
-		return err
-	}
-	if resp.Metadata.Error != nil {
-		logrus.Errorf("Failed to create volcengine record: %v", resp.Metadata.Error)
-		return err
+	if err != nil || resp.Metadata.Error != nil {
+		return fmt.Errorf("failed to create privatezone record, err: %v, resp: %v", err, resp)
 	}
 
 	logrus.Infof("Successfully created volcengine record: %+v", resp)
@@ -189,13 +184,9 @@ func (w *PrivateZoneWrapper) BatchCreatePrivateZoneRecord(ctx context.Context, z
 
 		resp, err := w.client.BatchCreateRecordWithContext(ctx, req)
 		logrus.Tracef("Batch create record req: %s, resp: %s", string(reqs), resp)
-		if err != nil {
-			logrus.Errorf("Failed to batch create privatezone record: %v", err)
-			return nil, err
-		}
-		if resp.Metadata.Error != nil {
-			logrus.Errorf("Failed to batch create privatezone record: %v", resp.Metadata.Error)
-			return nil, err
+		if err != nil || resp.Metadata.Error != nil {
+			// directly print resp avoid Metadata is nil
+			return nil, fmt.Errorf("failed to batch create privatezone record, err: %v, resp: %v", err, resp)
 		}
 
 		logrus.Infof("Successfully batch created privatezone record: %s", resp.String())
@@ -249,13 +240,8 @@ func (w *PrivateZoneWrapper) batchDeletePrivateZoneRecord(ctx context.Context, z
 		}
 		resp, err := w.client.BatchDeleteRecordWithContext(ctx, req)
 		logrus.Tracef("Batch delete record req: %s, resp: %s", req, resp)
-		if err != nil {
-			logrus.Errorf("Failed to batch delete privatezone record: %v", err)
-			return nil, err
-		}
-		if resp.Metadata.Error != nil {
-			logrus.Errorf("Failed to batch delete privatezone record: %v", resp.Metadata.Error)
-			return nil, err
+		if err != nil || resp.Metadata.Error != nil {
+			return nil, fmt.Errorf("failed to delete privatezone records, err: %v, resp: %v", err, resp)
 		}
 
 		return ids, nil
@@ -279,13 +265,8 @@ func (w *PrivateZoneWrapper) GetPrivateZoneRecords(ctx context.Context, zid int6
 		}
 		resp, err := w.client.ListRecordsWithContext(ctx, &req)
 		logrus.Tracef("List records req: %s, resp: %+v", req, resp)
-		if err != nil {
-			logrus.Errorf("Failed to list privatezone records: %v", err)
-			return nil, 0, err
-		}
-		if resp.Metadata.Error != nil {
-			logrus.Errorf("Failed to list volcengine records: %v", resp.Metadata.Error)
-			return nil, 0, fmt.Errorf("Failed to list privatezone records: %v", resp.Metadata.Error)
+		if err != nil || resp.Metadata.Error != nil {
+			return nil, 0, fmt.Errorf("failed to list privatezone records, err: %v, resp: %v", err, resp)
 		}
 		return resp.Records, int(volcengine.Int32Value(resp.Total)), nil
 	})
@@ -312,13 +293,8 @@ func (w *PrivateZoneWrapper) ListPrivateZones(ctx context.Context, vpcID string)
 		}
 		resp, err := w.client.ListPrivateZonesWithContext(ctx, req)
 		logrus.Tracef("List volcengine zones: req: %s, resp: %s", req, resp)
-		if err != nil {
-			logrus.Errorf("Failed to list volcengine privatezones: %v", err)
-			return nil, 0, err
-		}
-		if resp.Metadata.Error != nil {
-			logrus.Errorf("Failed to list volcengine privatezones: %v", resp.Metadata.Error)
-			return nil, 0, fmt.Errorf("Failed to list volcengine privatezones: %v", resp.Metadata.Error)
+		if err != nil || resp.Metadata.Error != nil {
+			return nil, 0, fmt.Errorf("failed to list volcengine privatezones, err: %v, resp: %v", err, resp)
 		}
 		return resp.Zones, int(volcengine.Int32Value(resp.Total)), nil
 	})

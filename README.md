@@ -16,7 +16,8 @@ variables
 # Installation
 Prerequisites
 - Helm 3.x installed
-- Volcengine API key (AK/SK) and VPC information ready
+- [Optional] Volcengine API key (AK/SK) and VPC information ready
+- [Optional] VKE IRSA ready
 
 ## [Optional] Prepare Volcengine API AK SK
 Volcengine API key (AK/SK) should be created with the following permissions:
@@ -35,22 +36,25 @@ Volcengine API key (AK/SK) should be created with the following permissions:
   ]
 }
 ```
-## [Optional] Prepare Volcengine API OIDC Role
+## [Optional] Prepare VKE RISA
 https://www.volcengine.com/docs/6460/1324604
 
 ## Deploy with Helm
 1. Export environment variables
 ```shell
-   export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk"
+   export VOLCENGINE_CREDENTILALS_PROVIDER="aksk"         # support aksk or irsa
+   export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk" # optional if use aksk
+   export VOLCENGINE_OIDC_ROLE_TRN="your-oidc-role-trn"   # optional if use irsa
    export VOLCENGINE_AK="your-ak"
    export VOLCENGINE_SK="your-sk"
    export VOLCENGINE_VPC="your-vpc-id"
    export VOLCENGINE_REGION="cn-beijing"
-   export VOLCENGINE_ENDPOINT="open.volcengineapi.com"
+   export VOLCENGINE_PRIVATEZONE_ENDPOINT="open.volcengineapi.com"
+   export VOLCENGINE_STS_ENDPOINT="open.volcengineapi.com"
    export TARGET_DOMAINS="{test.com,test2.com}"
 ```
 
-2. Create the Secret
+2. [Optional] Create the Secret
 ```shell
    kubectl create secret generic ${VOLCENGINE_SECRET_NAME} \
    --from-literal=access-key=${VOLCENGINE_AK} \
@@ -63,10 +67,13 @@ https://www.volcengine.com/docs/6460/1324604
    helm upgrade --install external-dns \
    manifests/externaldns \
    --namespace kube-system \
+   --set userConfig.env.provider.credentialsProvider=${VOLCENGINE_CREDENTILALS_PROVIDER} \
    --set userConfig.env.provider.secretName=${VOLCENGINE_SECRET_NAME} \
+   --set userConfig.env.provider.oidcRoleTrn=${VOLCENGINE_OIDC_ROLE_TRN} \
    --set userConfig.env.provider.vpc=${VOLCENGINE_VPC} \
    --set userConfig.env.provider.region=${VOLCENGINE_REGION} \
-   --set userConfig.env.provider.endpoint=${VOLCENGINE_ENDPOINT} \
+   --set userConfig.env.provider.privatezoneEndpoint=${VOLCENGINE_PRIVATEZONE_ENDPOINT} \
+   --set userConfig.env.provider.stsEndpoint=${VOLCENGINE_STS_ENDPOINT} \
    --set userConfig.args.controller.domainFilter=${TARGET_DOMAINS} \
    --set publicConfig.image.controller.repository=registry.k8s.io/external-dns/external-dns \
    --set publicConfig.image.provider.repository=volcengine/external-dns-volcengine-webhook
@@ -87,7 +94,7 @@ https://www.volcengine.com/docs/6460/1324604
 | userConfig.env.provider.vpc                 | Volcengine VPC identifier where the DNS zone is located.                                                                                                                  | --                                         | yes      |
 | userConfig.env.provider.region              | Volcengine region in which the DNS zone resides.                                                                                                                          | cn-beijing                                 | yes      |
 | userConfig.env.provider.privatezoneEndpoint | Custom Volcengine OpenAPI privatezone endpoint (overrides built-in global endpoint).                                                                                      | open.volcengineapi.com                     | yes      |
-| userConfig.env.provider.stsEndpoint         | Custom Volcengine OpenAPI sts endpoint (overrides built-in global endpoint).                                                                                              | cn-beijing                                 | yes      |
+| userConfig.env.provider.stsEndpoint         | Custom Volcengine OpenAPI sts endpoint (overrides built-in global endpoint).                                                                                              | open.volcengineapi.com                     | yes      |
 | userConfig.args.controller.domainFilters    | Limit possible target zones by a list of domain suffixes; specify multiple times or use comma-separated values (same as --domain-filter).                                 | --                                         | yes      |
 | userConfig.args.controller.policy           | How DNS records are synchronized between source and provider. Valid values: sync (create/update/delete) and upsert-only (create/update, never delete) (same as --policy). | upsert-only                                | no       |
 | userConfig.args.controller.registry         | Registry implementation used to keep track of DNS record ownership. Valid values: txt (default TXT registry) or noop (no ownership records) (same as --registry).         | txt                                        | no       |
