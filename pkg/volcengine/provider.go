@@ -30,7 +30,8 @@ import (
 )
 
 const (
-	defaultEndpoint = "open.volcengineapi.com"
+	defaultEndpoint    = "open.volcengineapi.com"
+	defaultStsEndpoint = "sts.volcengineapi.com"
 )
 
 // Provider is a provider for Volcengine.

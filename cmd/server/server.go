@@ -68,11 +68,11 @@ func startServer() {
 	pvzEndpoint := viper.GetString("privatezone_endpoint")
 	stsEndpoint := viper.GetString("sts_endpoint")
 	oidcTokenFile := viper.GetString("oidc_token_file")
-	roleTrn := viper.GetString("role_trn")
+	oidcRoleTrn := viper.GetString("oidc_role_trn")
 
 	// Print debug logs if enabled
-	log.Debugf("Starting server with configuration: port=%d, access_key=%s, access_secret=%s vpc=%s, endpoint=%s, region=%s, oidc_token_file=%s role_trn=%s \n",
-		port, volcengine.MaskSecret(accessKey), volcengine.MaskSecret(accessSecret), vpcID, pvzEndpoint, regionID, oidcTokenFile, roleTrn)
+	log.Debugf("Starting server with configuration: port=%d, access_key=%s, access_secret=%s vpc=%s, endpoint=%s, region=%s, oidc_token_file=%s oidc_role_trn=%s \n",
+		port, volcengine.MaskSecret(accessKey), volcengine.MaskSecret(accessSecret), vpcID, pvzEndpoint, regionID, oidcTokenFile, oidcRoleTrn)
 
 	options := []volcengine.Option{
 		volcengine.WithPrivateZone(regionID, vpcID),
@@ -81,9 +81,9 @@ func startServer() {
 	if accessKey != "" && accessSecret != "" {
 		log.Infof("Using static credentials with access_key=%s and access_secret=%s\n", volcengine.MaskSecret(accessKey), volcengine.MaskSecret(accessSecret))
 		options = append(options, volcengine.WithStaticCredentials(accessKey, accessSecret))
-	} else if oidcTokenFile != "" && roleTrn != "" {
-		log.Infof("Using oidc token file with oidcTokenFile=%s role_trn=%s \n", oidcTokenFile, roleTrn)
-		options = append(options, volcengine.WithOIDCCredentials(stsEndpoint, roleTrn, oidcTokenFile))
+	} else if oidcTokenFile != "" && oidcRoleTrn != "" {
+		log.Infof("Using oidc token file with oidcTokenFile=%s oidc_role_trn=%s \n", oidcTokenFile, oidcRoleTrn)
+		options = append(options, volcengine.WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFile))
 	} else {
 		panic("aksk or oidc token file is required")
 	}

@@ -58,7 +58,7 @@ userConfig:
       vpc:
       region: cn-beijing
       privatezoneEndpoint: open.volcengineapi.com
-      stsEndpoint: open.volcengineapi.com
+      stsEndpoint: sts.volcengineapi.com
       credentialsProvider: aksk     # @schema enum:[aksk, irsa]; default: "aksk"
       secretName:
       oidcRoleTrn:

@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-
+	
 	"volcengine-provider/cmd/server"
 	"volcengine-provider/cmd/tools"
 
@@ -40,6 +40,7 @@ var (
 			}
 			logrus.SetLevel(lev)
 			logrus.SetFormatter(&logrus.TextFormatter{})
+			logrus.SetReportCaller(true)
 		},
 	}
 )
@@ -71,5 +72,5 @@ func init() {
 	viper.BindEnv("privatezone_endpoint")
 	viper.BindEnv("sts_endpoint")
 	viper.BindEnv("oidc_token_file")
-	viper.BindEnv("role_trn")
+	viper.BindEnv("oidc_role_trn")
 }

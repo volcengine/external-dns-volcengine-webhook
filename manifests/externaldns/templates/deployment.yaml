@@ -105,7 +105,7 @@ spec:
               key: secret-key
         {{- end }}
         {{- if eq .Values.userConfig.env.provider.credentialsProvider "irsa" }}
-        - name: VOLCENGINE_ROLE_TRN
+        - name: VOLCENGINE_OIDC_ROLE_TRN
           value: {{ .Values.userConfig.env.provider.oidcRoleTrn | quote }}
         - name: VOLCENGINE_OIDC_TOKEN_FILE
           value: /var/run/secrets/vke.volcengine.com/irsa-tokens/token

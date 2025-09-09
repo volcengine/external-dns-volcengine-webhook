@@ -39,14 +39,14 @@ func WithStaticCredentials(accessKey, secretKey string) Option {
 	}
 }
 
-func WithOIDCCredentials(stsEndpoint, roleTrn, sessionTokenFile string) Option {
+func WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFilePath string) Option {
 	if stsEndpoint == "" {
-		stsEndpoint = defaultEndpoint
+		stsEndpoint = defaultStsEndpoint
 	}
 	return func(c *Config) {
 		p := credentials.NewOIDCCredentialsProviderFromEnv()
-		p.OIDCTokenFilePath = sessionTokenFile
-		p.RoleTrn = roleTrn
+		p.OIDCTokenFilePath = oidcTokenFilePath
+		p.RoleTrn = oidcRoleTrn
 		p.Endpoint = stsEndpoint
 		p.RoleSessionName = "external-dns"
 

@@ -68,7 +68,6 @@ func NewPrivateZoneWrapper(regionID, pvzEndpoint string, credentials *credential
 		WithRegion(regionID).
 		WithCredentials(credentials).
 		WithEndpoint(pvzEndpoint).
-		WithDisableSSL(true).
 		WithLogger(NewLoggerAdapter(logrus.StandardLogger().WithField("client", "privatezone")))
 	s, err := session.NewSession(c)
 	if err != nil {
