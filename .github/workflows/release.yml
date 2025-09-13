@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        run: |
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
+          git checkout ${{ github.ref }}
+
+      - name: Set up Go
+        run: |
+          wget https://golang.org/dl/go1.24.7.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.24.7.linux-amd64.tar.gz
+          export PATH=$PATH:/usr/local/go/bin
+          go version
+
+      - name: Build binary
+        run: make all
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Extract version from tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "MAJOR_MINOR=$MAJOR_MINOR" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}:${{ env.VERSION }} .
+          docker tag ghcr.io/${{ github.repository }}:${{ env.VERSION }} ghcr.io/${{ github.repository }}:${{ env.MAJOR_MINOR }}
+          docker push ghcr.io/${{ github.repository }}:${{ env.VERSION }}
+          docker push ghcr.io/${{ github.repository }}:${{ env.MAJOR_MINOR }}
+
+      - name: Create GitHub Release
+        run: |
+          gh release create ${{ github.ref_name }} ./build/external-dns-volcengine-webhook --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

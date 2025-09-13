@@ -183,7 +183,7 @@ func listRecordByZid(client *volcengine.PrivateZoneWrapper, zoneID int64) error 
 	}
 	for _, r := range records {
 		if r.Host != nil {
-			log.Infof("id: %d, host: %s, type: %s, target: %s, ttl: %d", *r.RecordID, *r.Host, *r.Type, *r.Value, *r.TTL)
+			log.Infof("id: %s, host: %s, type: %s, target: %s, ttl: %d", *r.RecordID, *r.Host, *r.Type, *r.Value, *r.TTL)
 		}
 	}
 	return nil

@@ -143,6 +143,7 @@ func (p *Provider) applyChangesForPrivateZone(ctx context.Context, changes *plan
 		}
 	}
 
+	// TODO support update records sometime avoid DNS return NXDOMAIN during update
 	// if len(toUpdate) > 0 {
 	// 	if err := p.updatePrivateZoneRecords(ctx, zoneNameIDMapper, toUpdate); err != nil {
 	// 		return err
@@ -172,10 +173,10 @@ func (p *Provider) createPrivateZoneRecords(ctx context.Context, zones provider.
 			for _, target := range record.Targets {
 				host, domain := splitDNSName(record.DNSName, zones[zid])
 				if domain == "" {
-					logrus.Errorf("Failed to parse domain: %s, zoneId: %d, zoneName: %s", record.DNSName, zid, zones[zid])
+					logrus.Errorf("Failed to parse domain: %s, zoneId: %d, zoneName: %s", record.DNSName, zidInt, zones[zid])
 					continue
 				}
-				value := target // 创建局部变量拷贝
+				value := target // Create a local variable copy
 				if record.RecordType == "TXT" {
 					value = escapeTXTRecordValue(value)
 					logrus.Infof("Escape txt record for zone with value (%s), host: %s, zid: %d", value, host, zidInt)
@@ -188,7 +189,7 @@ func (p *Provider) createPrivateZoneRecords(ctx context.Context, zones provider.
 				recordsMap[zidInt] = append(recordsMap[zidInt], &privatezone.RecordForBatchCreateRecordInput{
 					Host:   &host,
 					Type:   &record.RecordType,
-					Value:  &value, // 使用局部变量的地址
+					Value:  &value, // Use the address of the local variable
 					TTL:    ttl,
 					Remark: volcengine.String(defaultRecordRemark),
 				})

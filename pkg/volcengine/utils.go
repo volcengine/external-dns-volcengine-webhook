@@ -26,7 +26,7 @@ func MaskSecret(secret string) string {
 	if len(secret) <= 8 {
 		return "****"
 	}
-	return secret[:4] + "****" + secret[len(secret)-4:]
+	return secret[:4] + "********" + secret[len(secret)-4:]
 }
 
 // BatchForEach splits the items into batches and calls the function for each batch.
@@ -36,7 +36,7 @@ func BatchForEach[T any, R any](items []T, batchSize int, f func([]T) ([]R, erro
 	}
 	n := len(items)
 	if n == 0 {
-		return nil, nil
+		return []R{}, nil
 	}
 	var all []R
 	for i := 0; i < n; i += batchSize {
@@ -54,7 +54,7 @@ func BatchForEach[T any, R any](items []T, batchSize int, f func([]T) ([]R, erro
 	return all, nil
 }
 
-// QueryAll 泛型翻页：query 负责克隆+设页号+返回 (data,total,err)
+// QueryAll is a generic pagination function: query is responsible for cloning, setting page number, and returning (data, total, err)
 func QueryAll[T any](
 	pageSize int,
 	query func(int, int) ([]T, int, error),
@@ -83,7 +83,7 @@ func QueryAll[T any](
 func escapeTXTRecordValue(value string) string {
 	if strings.HasPrefix(value, "\"heritage=") {
 		// remove \" in txt record value for volcengine privatezone
-		return fmt.Sprintf("%s", strings.Replace(value, "\"", "", -1))
+		return strings.ReplaceAll(value, "\"", "")
 	}
 	return value
 }

@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path"
+	"runtime"
 
 	"volcengine-provider/cmd/server"
 	"volcengine-provider/cmd/tools"
@@ -39,7 +41,12 @@ var (
 				lev = logrus.InfoLevel
 			}
 			logrus.SetLevel(lev)
-			logrus.SetFormatter(&logrus.TextFormatter{})
+			logrus.SetFormatter(&logrus.TextFormatter{
+				CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+					filename := path.Base(f.File)
+					return f.Function, fmt.Sprintf("%s:%d", filename, f.Line)
+				},
+			})
 			logrus.SetReportCaller(true)
 		},
 	}
@@ -59,12 +66,12 @@ func init() {
 
 	// Bind environment variables
 	viper.SetEnvPrefix("VOLCENGINE") // Prefix for environment variables
-	viper.BindEnv("access_key")
-	viper.BindEnv("secret_key")
-	viper.BindEnv("vpc")
-	viper.BindEnv("region")
-	viper.BindEnv("privatezone_endpoint")
-	viper.BindEnv("sts_endpoint")
-	viper.BindEnv("oidc_token_file")
-	viper.BindEnv("oidc_role_trn")
+	viper.MustBindEnv("access_key")
+	viper.MustBindEnv("secret_key")
+	viper.MustBindEnv("vpc")
+	viper.MustBindEnv("region")
+	viper.MustBindEnv("privatezone_endpoint")
+	viper.MustBindEnv("sts_endpoint")
+	viper.MustBindEnv("oidc_token_file")
+	viper.MustBindEnv("oidc_role_trn")
 }

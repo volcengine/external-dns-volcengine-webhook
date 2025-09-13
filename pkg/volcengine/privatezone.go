@@ -25,6 +25,7 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/service/privatezone"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
+	"github.com/volcengine/volcengine-go-sdk/volcengine/request"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/session"
 	"sigs.k8s.io/external-dns/endpoint"
 )
@@ -56,10 +57,19 @@ type privateZoneAPI interface {
 
 var _ privateZoneAPI = &PrivateZoneWrapper{}
 
+// privateZoneClient is an interface that contains only the methods actually used by PrivateZoneWrapper
+type privateZoneClient interface {
+	ListPrivateZonesWithContext(ctx context.Context, input *privatezone.ListPrivateZonesInput, options ...request.Option) (*privatezone.ListPrivateZonesOutput, error)
+	ListRecordsWithContext(ctx context.Context, input *privatezone.ListRecordsInput, options ...request.Option) (*privatezone.ListRecordsOutput, error)
+	CreateRecordWithContext(ctx context.Context, input *privatezone.CreateRecordInput, options ...request.Option) (*privatezone.CreateRecordOutput, error)
+	BatchCreateRecordWithContext(ctx context.Context, input *privatezone.BatchCreateRecordInput, options ...request.Option) (*privatezone.BatchCreateRecordOutput, error)
+	BatchDeleteRecordWithContext(ctx context.Context, input *privatezone.BatchDeleteRecordInput, options ...request.Option) (*privatezone.BatchDeleteRecordOutput, error)
+}
+
 // PrivateZoneWrapper is a wrapper for the privatezone API.
 type PrivateZoneWrapper struct {
 	// The client for the privatezone API.
-	client privatezone.PRIVATEZONEAPI
+	client privateZoneClient
 }
 
 // NewPrivateZoneWrapper creates a new PrivateZone wrapper.

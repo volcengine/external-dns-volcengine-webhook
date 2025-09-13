@@ -51,7 +51,10 @@ func init() {
 	StartCmd.Flags().IntVarP(&writeTimeOut, "write_timeout", "", 60, "Write timeout in seconds")
 
 	// Bind flags to Viper
-	viper.BindPFlag("port", StartCmd.Flags().Lookup("port"))
+	err := viper.BindPFlag("port", StartCmd.Flags().Lookup("port"))
+	if err != nil {
+		log.Fatalf("failed to bind flags: %v", err)
+	}
 }
 
 func startServer() {
@@ -94,9 +97,9 @@ func startServer() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(),
-		syscall.SIGTERM, // 常规终止信号
-		syscall.SIGINT,  // Ctrl+C 中断
-		// syscall.SIGKILL 不可捕获（内核级信号）
+		syscall.SIGTERM, // Normal termination signal
+		syscall.SIGINT,  // Ctrl+C interrupt
+		// syscall.SIGKILL cannot be caught (kernel-level signal)
 	)
 	defer stop()
 
