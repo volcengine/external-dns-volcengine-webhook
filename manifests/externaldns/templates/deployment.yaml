@@ -98,7 +98,7 @@ spec:
             secretKeyRef:
               name: {{ .Values.userConfig.env.provider.secretName }}
               key: access-key
-        - name: VOLCENGINE_ACCESS_SECRET
+        - name: VOLCENGINE_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.userConfig.env.provider.secretName }}

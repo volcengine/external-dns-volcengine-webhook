@@ -72,14 +72,14 @@ func init() {
 
 func newPrivateZoneClient() (*volcengine.PrivateZoneWrapper, error) {
 	accessKey := viper.GetString("access_key")
-	accessSecret := viper.GetString("access_secret")
+	secretKey := viper.GetString("secret_key")
 	stsEndpoint := viper.GetString("sts_endpoint")
 	oidcTokenFile := viper.GetString("oidc_token_file")
 	roleTrn := viper.GetString("role_trn")
 	var c *credentials.Credentials
-	if accessKey != "" && accessSecret != "" {
-		log.Infof("Using static credentials with access_key=%s and access_secret=%s\n", volcengine.MaskSecret(accessKey), volcengine.MaskSecret(accessSecret))
-		c = credentials.NewStaticCredentials(accessKey, accessSecret, "")
+	if accessKey != "" && secretKey != "" {
+		log.Infof("Using static credentials with access_key=%s and secret_key=%s\n", volcengine.MaskSecret(accessKey), volcengine.MaskSecret(secretKey))
+		c = credentials.NewStaticCredentials(accessKey, secretKey, "")
 	} else if oidcTokenFile != "" && roleTrn != "" {
 		log.Infof("Using oidc token file with oidcTokenFile=%s role_trn=%s \n", oidcTokenFile, roleTrn)
 		p := credentials.NewOIDCCredentialsProviderFromEnv()

@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	
+
 	"volcengine-provider/cmd/server"
 	"volcengine-provider/cmd/tools"
 
@@ -57,16 +57,10 @@ func init() {
 	rootCmd.AddCommand(server.StartCmd)
 	rootCmd.AddCommand(tools.RecordCmd)
 
-	// Configure Viper
-	viper.SetConfigName("config")                   // Name of the config file (without extension)
-	viper.SetConfigType("yaml")                     // Config file type
-	viper.AddConfigPath(".")                        // Look for config in the current directory
-	viper.AddConfigPath("/etc/volcengineprovider/") // Optionally look in /etc
-
 	// Bind environment variables
 	viper.SetEnvPrefix("VOLCENGINE") // Prefix for environment variables
 	viper.BindEnv("access_key")
-	viper.BindEnv("access_secret")
+	viper.BindEnv("secret_key")
 	viper.BindEnv("vpc")
 	viper.BindEnv("region")
 	viper.BindEnv("privatezone_endpoint")
