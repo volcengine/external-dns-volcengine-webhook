@@ -14,19 +14,9 @@ jobs:
       packages: write
     steps:
       - name: Checkout code
-        run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
-          git checkout ${{ github.ref }}
-
-      - name: Set up Go
-        run: |
-          wget https://golang.org/dl/go1.24.7.linux-amd64.tar.gz
-          sudo tar -C /usr/local -xzf go1.24.7.linux-amd64.tar.gz
-          export PATH=$PATH:/usr/local/go/bin
-          go version
-
-      - name: Build binary
-        run: make all
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Login to GitHub Container Registry
         run: |
@@ -41,13 +31,19 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:${{ env.VERSION }} .
-          docker tag ghcr.io/${{ github.repository }}:${{ env.VERSION }} ghcr.io/${{ github.repository }}:${{ env.MAJOR_MINOR }}
-          docker push ghcr.io/${{ github.repository }}:${{ env.VERSION }}
-          docker push ghcr.io/${{ github.repository }}:${{ env.MAJOR_MINOR }}
+          docker build -t ghcr.io/${{ github.repository }}:v${{ env.VERSION }} .
+          docker tag ghcr.io/${{ github.repository }}:v${{ env.VERSION }} ghcr.io/${{ github.repository }}:v${{ env.MAJOR_MINOR }}
+          docker push ghcr.io/${{ github.repository }}:v${{ env.VERSION }}
+          docker push ghcr.io/${{ github.repository }}:v${{ env.MAJOR_MINOR }}
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         run: |
-          gh release create ${{ github.ref_name }} ./build/external-dns-volcengine-webhook --generate-notes
+          # Check if release already exists
+          if gh release view ${{ github.ref_name }} &>/dev/null; then
+            echo "Release already exists, skipping creation"
+          else
+            echo "Creating new release"
+            gh release create ${{ github.ref_name }} --generate-notes
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
