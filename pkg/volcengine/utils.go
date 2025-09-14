@@ -119,6 +119,10 @@ func splitDNSName(dnsName, zoneName string) (host string, domain string) {
 	return host, domain
 }
 
+func cleanCNAMEValue(value string) string {
+	return strings.TrimSuffix(value, ".")
+}
+
 type LoggerAdapter struct {
 	*logrus.Entry
 }

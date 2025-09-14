@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: externalname-cname
+  namespace: default
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "api.test.com."   # expect to create record with hostname nginx.test.com
+spec:
+  type: ExternalName
+  externalName: nlb.volcengine.com # expect CNAME value

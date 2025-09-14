@@ -23,6 +23,37 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCleanCNAMEValue(t *testing.T) {
+	cases := []struct {
+		name     string
+		value    string
+		expected string
+	}{{
+		name:     "value without trailing dot",
+		value:    "example.com",
+		expected: "example.com",
+	}, {
+		name:     "value with trailing dot",
+		value:    "example.com.",
+		expected: "example.com",
+	}, {
+		name:     "empty string",
+		value:    "",
+		expected: "",
+	}, {
+		name:     "only dot",
+		value:    ".",
+		expected: "",
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := cleanCNAMEValue(tc.value)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestMaskSecret(t *testing.T) {
 	cases := []struct {
 		name     string

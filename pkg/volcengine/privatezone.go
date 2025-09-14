@@ -217,6 +217,7 @@ func (w *PrivateZoneWrapper) DeletePrivateZoneRecord(ctx context.Context, zoneID
 		return err
 	}
 	recordIDs := make([]string, 0)
+	found := false
 	for _, record := range records {
 		if host == volcengine.StringValue(record.Host) &&
 			recordType == volcengine.StringValue(record.Type) {
@@ -225,16 +226,25 @@ func (w *PrivateZoneWrapper) DeletePrivateZoneRecord(ctx context.Context, zoneID
 				value = unescapeTXTRecordValue(value)
 				logrus.Tracef("Unescape txt record value: (%s), host: %s, zid: %d", value, host, zoneID)
 			}
+			if volcengine.StringValue(record.Type) == "CNAME" {
+				value = cleanCNAMEValue(value)
+				logrus.Tracef("Clean cname target: (%s), host: %s, zid: %d", value, host, zoneID)
+			}
+
 			for _, target := range targets {
 				if target == value {
 					recordIDs = append(recordIDs, volcengine.StringValue(record.RecordID))
+					found = true
 					break
 				}
+			}
+			if !found {
+				logrus.Debugf("Not found record bacause different value: host: %s, type: %s, value: %s, expectTargets: %v", host, recordType, value, targets)
 			}
 		}
 	}
 	if len(recordIDs) == 0 {
-		logrus.Infof("No record to delete")
+		logrus.Errorf("Not found record to delete.  zid: %d, host: %s, recordType %s, targes: %v", zoneID, host, recordType, targets)
 		return nil
 	}
 

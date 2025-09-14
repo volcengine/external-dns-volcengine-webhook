@@ -11,3 +11,5 @@ clean:
 image-local:
 	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) --platform linux/amd64 -f Dockerfile .
 
+test: 
+	go test ./pkg/volcengine -v

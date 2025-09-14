@@ -179,7 +179,7 @@ func (p *Provider) createPrivateZoneRecords(ctx context.Context, zones provider.
 				value := target // Create a local variable copy
 				if record.RecordType == "TXT" {
 					value = escapeTXTRecordValue(value)
-					logrus.Infof("Escape txt record for zone with value (%s), host: %s, zid: %d", value, host, zidInt)
+					logrus.Tracef("Escape txt record for zone with value (%s), host: %s, zid: %d", value, host, zidInt)
 				}
 				var ttl *int32
 				if record.RecordTTL > 0 {
