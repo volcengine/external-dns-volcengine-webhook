@@ -33,6 +33,8 @@ type MockClient struct {
 	CreateRecordFunc      func(ctx context.Context, input *privatezone.CreateRecordInput) (*privatezone.CreateRecordOutput, error)
 	BatchCreateRecordFunc func(ctx context.Context, input *privatezone.BatchCreateRecordInput) (*privatezone.BatchCreateRecordOutput, error)
 	BatchDeleteRecordFunc func(ctx context.Context, input *privatezone.BatchDeleteRecordInput) (*privatezone.BatchDeleteRecordOutput, error)
+	UpdateRecordFunc      func(ctx context.Context, input *privatezone.UpdateRecordInput) (*privatezone.UpdateRecordOutput, error)
+	DeleteRecordFunc      func(ctx context.Context, input *privatezone.DeleteRecordInput) (*privatezone.DeleteRecordOutput, error)
 }
 
 // Implement necessary methods to match the privateZoneClient interface
@@ -67,6 +69,20 @@ func (m *MockClient) BatchCreateRecordWithContext(ctx context.Context, input *pr
 func (m *MockClient) BatchDeleteRecordWithContext(ctx context.Context, input *privatezone.BatchDeleteRecordInput, options ...request.Option) (*privatezone.BatchDeleteRecordOutput, error) {
 	if m.BatchDeleteRecordFunc != nil {
 		return m.BatchDeleteRecordFunc(ctx, input)
+	}
+	return nil, nil
+}
+
+func (m *MockClient) UpdateRecordWithContext(ctx context.Context, input *privatezone.UpdateRecordInput, options ...request.Option) (*privatezone.UpdateRecordOutput, error) {
+	if m.UpdateRecordFunc != nil {
+		return m.UpdateRecordFunc(ctx, input)
+	}
+	return nil, nil
+}
+
+func (m *MockClient) DeleteRecordWithContext(ctx context.Context, input *privatezone.DeleteRecordInput, options ...request.Option) (*privatezone.DeleteRecordOutput, error) {
+	if m.DeleteRecordFunc != nil {
+		return m.DeleteRecordFunc(ctx, input)
 	}
 	return nil, nil
 }

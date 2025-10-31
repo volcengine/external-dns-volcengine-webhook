@@ -123,6 +123,13 @@ func cleanCNAMEValue(value string) string {
 	return strings.TrimSuffix(value, ".")
 }
 
+func completeCNAMEValue(value string) string {
+	if !strings.HasSuffix(value, ".") {
+		return value + "."
+	}
+	return value
+}
+
 type LoggerAdapter struct {
 	*logrus.Entry
 }

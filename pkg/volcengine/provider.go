@@ -123,13 +123,11 @@ func (p *Provider) applyChangesForPrivateZone(ctx context.Context, changes *plan
 
 	toCreate := make([]*endpoint.Endpoint, 0)
 	toDelete := make([]*endpoint.Endpoint, 0)
-	// toUpdate := make([]*endpoint.Endpoint, 0)
+	toUpdate := make([]*endpoint.Endpoint, 0)
 
 	toCreate = append(toCreate, changes.Create...)
 	toDelete = append(toDelete, changes.Delete...)
-
-	toCreate = append(toCreate, changes.UpdateNew...)
-	toDelete = append(toDelete, changes.UpdateOld...)
+	toUpdate = append(toUpdate, changes.UpdateNew...)
 
 	if len(toDelete) > 0 {
 		if err := p.deletePrivateZoneRecords(ctx, zoneNameIDMapper, toDelete); err != nil {
@@ -143,12 +141,12 @@ func (p *Provider) applyChangesForPrivateZone(ctx context.Context, changes *plan
 		}
 	}
 
-	// TODO support update records sometime avoid DNS return NXDOMAIN during update
-	// if len(toUpdate) > 0 {
-	// 	if err := p.updatePrivateZoneRecords(ctx, zoneNameIDMapper, toUpdate); err != nil {
-	// 		return err
-	// 	}
-	// }
+	// support update records sometime avoid DNS return NXDOMAIN during update
+	if len(toUpdate) > 0 {
+		if err := p.updatePrivateZoneRecords(ctx, zoneNameIDMapper, toUpdate); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -258,6 +256,98 @@ func (p *Provider) deletePrivateZoneRecords(ctx context.Context, zoneMap provide
 			if err := p.pzClient.DeletePrivateZoneRecord(ctx, zidInt, host, ep.RecordType, ep.Targets); err != nil {
 				logrus.Errorf("Failed to delete private zone record: %s", err)
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (p *Provider) updatePrivateZoneRecords(ctx context.Context, zoneMap provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
+	for _, ep := range endpoints {
+		// match the longest zone name, private zone use the longest zone name override short zone name
+		zid, zoneName := zoneMap.FindZone(ep.DNSName)
+		if zid == "" {
+			logrus.Debugf("Skipping DNS update of endpoint: '%s' type: '%s', it does not match against Domain filters", ep.DNSName, ep.RecordType)
+			continue
+		}
+		host, _ := splitDNSName(ep.DNSName, zoneName)
+		zidInt, err := strconv.ParseInt(zid, 10, 64)
+		if err != nil {
+			logrus.Errorf("Failed to parse zid: %s", zid)
+			return err
+		}
+		zoneRecords, err := p.pzClient.GetPrivateZoneRecords(ctx, zidInt)
+		if err != nil {
+			logrus.Errorf("Failed to get private zone records: %s", err)
+			return err
+		}
+		// update record ttl only if record type is A, AAAA, CNAME, TXT
+		// delete record if not found in endpoint targets
+		for _, record := range zoneRecords {
+			if volcengine.StringValue(record.Host) != host || volcengine.StringValue(record.Type) != ep.RecordType {
+				continue
+			}
+			value := volcengine.StringValue(record.Value)
+			if volcengine.StringValue(record.Type) == "TXT" {
+				value = unescapeTXTRecordValue(value)
+			}
+			if volcengine.StringValue(record.Type) == "CNAME" {
+				value = cleanCNAMEValue(value)
+			}
+			found := false
+			for _, target := range ep.Targets {
+				// Find matched record to delete
+				if value == target {
+					found = true
+					break
+				}
+			}
+			if found {
+				if ep.RecordTTL.IsConfigured() && int64(ep.RecordTTL) != int64(volcengine.Int32Value(record.TTL)) {
+					// Update record ttl only
+					err := p.pzClient.UpdatePrivateZoneRecord(ctx, int64(volcengine.Int32Value(record.ZID)), volcengine.StringValue(record.RecordID),
+						volcengine.StringValue(record.Host), volcengine.StringValue(record.Type), volcengine.StringValue(record.Value), int32(ep.RecordTTL))
+					if err != nil {
+						logrus.Errorf("Failed to update private zone record: %s", err)
+						// continue to next record
+						continue
+					}
+				}
+			} else {
+				err := p.pzClient.DeletePrivateZoneRecordById(ctx, int64(volcengine.Int32Value(record.ZID)), volcengine.StringValue(record.RecordID))
+				if err != nil {
+					logrus.Errorf("Failed to delete private zone record: %s", err)
+					// continue to next record
+					continue
+				}
+			}
+		}
+		// create record if not found in private zone records
+		for _, target := range ep.Targets {
+			if ep.RecordType == "TXT" {
+				target = escapeTXTRecordValue(target)
+			}
+			if ep.RecordType == "CNAME" {
+				target = completeCNAMEValue(target)
+			}
+			found := false
+			for _, record := range zoneRecords {
+				if volcengine.StringValue(record.Host) != host || volcengine.StringValue(record.Type) != ep.RecordType {
+					continue
+				}
+				// Find matched record to delete
+				if volcengine.StringValue(record.Value) == target {
+					found = true
+					break
+				}
+			}
+			if !found {
+				err := p.pzClient.CreatePrivateZoneRecord(ctx, zidInt, host, ep.RecordType, target, int32(ep.RecordTTL))
+				if err != nil {
+					logrus.Errorf("Failed to create private zone record: %s", err)
+					// continue to next record
+					continue
+				}
 			}
 		}
 	}

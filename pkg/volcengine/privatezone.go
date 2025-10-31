@@ -52,7 +52,9 @@ type privateZoneAPI interface {
 	GetPrivateZoneRecords(ctx context.Context, zid int64) ([]*privatezone.RecordForListRecordsOutput, error)
 	CreatePrivateZoneRecord(ctx context.Context, zoneID int64, domain, recordType, target string, TTL int32) error
 	BatchCreatePrivateZoneRecord(ctx context.Context, zoneID int64, records []*privatezone.RecordForBatchCreateRecordInput) error
-	DeletePrivateZoneRecord(ctx context.Context, zoneID int64, host string, recordType string, targets []string) error
+	UpdatePrivateZoneRecord(ctx context.Context, zoneID int64, recordID string, host, recordType, target string, TTL int32) error
+	DeletePrivateZoneRecord(ctx context.Context, zoneID int64, host, recordType string, targets []string) error
+	DeletePrivateZoneRecordById(ctx context.Context, zoneID int64, recordID string) error
 }
 
 var _ privateZoneAPI = &PrivateZoneWrapper{}
@@ -62,8 +64,10 @@ type privateZoneClient interface {
 	ListPrivateZonesWithContext(ctx context.Context, input *privatezone.ListPrivateZonesInput, options ...request.Option) (*privatezone.ListPrivateZonesOutput, error)
 	ListRecordsWithContext(ctx context.Context, input *privatezone.ListRecordsInput, options ...request.Option) (*privatezone.ListRecordsOutput, error)
 	CreateRecordWithContext(ctx context.Context, input *privatezone.CreateRecordInput, options ...request.Option) (*privatezone.CreateRecordOutput, error)
+	UpdateRecordWithContext(ctx context.Context, input *privatezone.UpdateRecordInput, options ...request.Option) (*privatezone.UpdateRecordOutput, error)
 	BatchCreateRecordWithContext(ctx context.Context, input *privatezone.BatchCreateRecordInput, options ...request.Option) (*privatezone.BatchCreateRecordOutput, error)
 	BatchDeleteRecordWithContext(ctx context.Context, input *privatezone.BatchDeleteRecordInput, options ...request.Option) (*privatezone.BatchDeleteRecordOutput, error)
+	DeleteRecordWithContext(ctx context.Context, input *privatezone.DeleteRecordInput, options ...request.Option) (*privatezone.DeleteRecordOutput, error)
 }
 
 // PrivateZoneWrapper is a wrapper for the privatezone API.
@@ -206,6 +210,38 @@ func (w *PrivateZoneWrapper) BatchCreatePrivateZoneRecord(ctx context.Context, z
 		return err
 	}
 
+	return nil
+}
+
+func (w *PrivateZoneWrapper) UpdatePrivateZoneRecord(ctx context.Context, zoneID int64, recordID string, host, recordType, target string, TTL int32) error {
+	req := &privatezone.UpdateRecordInput{
+		RecordID: &recordID,
+		Host:     &host,
+		Type:     &recordType,
+		Value:    &target,
+		ZID:      &zoneID,
+		TTL:      &TTL,
+	}
+	resp, err := w.client.UpdateRecordWithContext(ctx, req)
+	logrus.Tracef("Update record request: %+v, resp: %+v", req, resp)
+	if err != nil || resp.Metadata.Error != nil {
+		return fmt.Errorf("failed to update privatezone record, err: %v, resp: %v", err, resp)
+	}
+	logrus.Infof("Successfully updated volcengine record: %+v", resp)
+	return nil
+}
+
+func (w *PrivateZoneWrapper) DeletePrivateZoneRecordById(ctx context.Context, zoneID int64, recordID string) error {
+	req := &privatezone.DeleteRecordInput{
+		RecordID: &recordID,
+		ZID:      &zoneID,
+	}
+	resp, err := w.client.DeleteRecordWithContext(ctx, req)
+	logrus.Tracef("Delete record request: %+v, resp: %+v", req, resp)
+	if err != nil || resp.Metadata.Error != nil {
+		return fmt.Errorf("failed to delete privatezone record, err: %v, resp: %v", err, resp)
+	}
+	logrus.Infof("Successfully deleted volcengine record: %+v", resp)
 	return nil
 }
 
