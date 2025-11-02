@@ -50,7 +50,8 @@ userConfig:
       policy: upsert-only     # @schema enum:[create-only, sync, upsert-only]; type:string; default: "upsert-only"
       registry: txt           # @schema enum:[txt, noop]; default: "txt"
       txtOwnerId:             # @schema type:[string, null]; default: null
-      txtPrefix:              # @schema type:[string, null]; default: null
+      txtPrefix: externaldns-%{record_type}. # @schema type:[string, null]; default: externaldns-%{record_type}.
+      txtWildcardReplacement: wildcard # @schema type:[string, null]; default: wildcard
     provider:
       logLevel: false
   env:

@@ -54,6 +54,9 @@ spec:
         {{- if.Values.userConfig.args.controller.txtPrefix }}
         - --txt-prefix={{.Values.userConfig.args.controller.txtPrefix }}
         {{- end }}
+        {{- if .Values.userConfig.args.controller.txtWildcardReplacement }}
+        - --txt-wildcard-replacement={{.Values.userConfig.args.controller.txtWildcardReplacement }}
+        {{- end }}
         resources:
           limits:
             memory: {{ .Values.userConfig.Resources.controller.Limits.Memory }}
