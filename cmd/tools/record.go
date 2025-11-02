@@ -191,13 +191,16 @@ func listRecordByZid(client *volcengine.PrivateZoneWrapper, zoneID int64) error 
 
 func listRecordByVpc(client *volcengine.PrivateZoneWrapper, vpcID string) error {
 	log.Debugf("list record: %s", vpcID)
-	endpoints, err := client.ListRecordsByVPC(context.Background(), vpcID)
+	zones, err := client.ListPrivateZones(context.Background(), vpcID)
 	if err != nil {
 		log.Errorf("Failed to show record: %v", err)
 		return err
 	}
-	for _, ep := range endpoints {
-		fmt.Printf("dns:%s endpoints:%s\n", ep.DNSName, ep.Targets.String())
+	for _, zone := range zones {
+		if err = listRecordByZid(client, int64(*zone.ZID)); err != nil {
+			log.Errorf("Failed to show record: %v", err)
+			return err
+		}
 	}
 
 	return nil

@@ -45,7 +45,7 @@ userConfig:
         - ingress
       interval: 30s
       logLevel: info
-      domainFilters: []       # domain filter, if empty, will filter all domain
+      domainFilters: []       # @schema type: []string; domain filter, if empty, will filter all domain; default: null
       labelFilter:            # @schema type: [string,null]; default: null
       policy: upsert-only     # @schema enum:[create-only, sync, upsert-only]; type:string; default: "upsert-only"
       registry: txt           # @schema enum:[txt, noop]; default: "txt"

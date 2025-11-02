@@ -16,6 +16,8 @@
 package volcengine
 
 import (
+	"strings"
+	
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 )
 
@@ -51,5 +53,11 @@ func WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFilePath string) Opt
 		p.RoleSessionName = "external-dns"
 
 		c.Credentials = credentials.NewCredentials(p)
+	}
+}
+
+func WithDomainFilter(domainFilter string) Option {
+	return func(c *Config) {
+		c.DomainFilter = strings.Split(domainFilter, ",")
 	}
 }

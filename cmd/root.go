@@ -74,4 +74,5 @@ func init() {
 	viper.MustBindEnv("sts_endpoint")
 	viper.MustBindEnv("oidc_token_file")
 	viper.MustBindEnv("oidc_role_trn")
+	viper.MustBindEnv("domain_filter")
 }

@@ -38,6 +38,7 @@ const (
 type Provider struct {
 	provider.BaseProvider
 
+	domainFilter endpoint.DomainFilter
 	// private zone
 	vpcID       string
 	privateZone bool
@@ -48,9 +49,9 @@ type Option func(*Config)
 
 // Config is the configuration for the Volcengine provider.
 type Config struct {
-	RegionID    string
-	Credentials *credentials.Credentials
-
+	RegionID     string
+	Credentials  *credentials.Credentials
+	DomainFilter []string
 	// private zone
 	PrivateZone         bool
 	VpcId               string
@@ -81,7 +82,15 @@ func NewVolcengineProvider(options []Option) (*Provider, error) {
 			return nil, fmt.Errorf("failed to create private zone wrapper: %v", err)
 		}
 	}
+	if len(c.DomainFilter) > 0 {
+		p.domainFilter.Filters = append(p.domainFilter.Filters, c.DomainFilter...)
+	}
+
 	return p, nil
+}
+
+func (p *Provider) GetDomainFilter() endpoint.DomainFilterInterface {
+	return &p.domainFilter
 }
 
 // Records returns the list of endpoints for the provider.
@@ -89,7 +98,7 @@ func NewVolcengineProvider(options []Option) (*Provider, error) {
 func (p *Provider) Records(ctx context.Context) (endpoints []*endpoint.Endpoint, err error) {
 	logrus.Infof("List Volcengine records, vpc: %s, privatezone:%t", p.vpcID, p.privateZone)
 	if p.privateZone {
-		return p.pzClient.ListRecordsByVPC(ctx, p.vpcID)
+		return p.listRecordsByVPC(ctx, p.vpcID)
 	}
 	return endpoints, err
 }
@@ -149,6 +158,57 @@ func (p *Provider) applyChangesForPrivateZone(ctx context.Context, changes *plan
 	}
 
 	return nil
+}
+
+// listRecordsByVPC returns the list of private zones for the given VPC.
+func (p *Provider) listRecordsByVPC(ctx context.Context, vpc string) (endpoints []*endpoint.Endpoint, err error) {
+	// step 1: get all private zones bind to vpc
+	vpcZones, err := p.pzClient.ListPrivateZones(ctx, vpc)
+	if err != nil {
+		logrus.Errorf("Failed to list volcengine privatezones: %v", err)
+		return nil, err
+	}
+
+	// step 2: get all record with private zone
+	for _, zone := range vpcZones {
+		if p.domainFilter.IsConfigured() && !p.domainFilter.Match(volcengine.StringValue(zone.ZoneName)) {
+			logrus.Debugf("Skip zone %s by domainFilter", volcengine.StringValue(zone.ZoneName))
+			continue
+		}
+		records, err := p.pzClient.GetPrivateZoneRecords(ctx, int64(volcengine.Int32Value(zone.ZID)))
+		if err != nil {
+			logrus.Errorf("Failed to get privatezone records: %v", err)
+			return nil, err
+		}
+
+		if len(records) == 0 {
+			continue
+		}
+		// step 3: convert record to endpoint, merge targets with same host and type
+		recordsMap := groupPrivateZoneRecords(records)
+		for _, recordList := range recordsMap {
+			record := recordList[0]
+			dnsName := getDNSName(record.Host, *zone.ZoneName)
+			ttl := record.TTL
+			targets := make([]string, 0)
+			for _, r := range recordList {
+				target := r.Target
+				//if record.Type == "TXT" {
+				//	target = unescapeTXTRecordValue(target)
+				//	logrus.Debugf("Unescaped TXT record target: (%s)", target)
+				//}
+				targets = append(targets, target)
+			}
+			// Domain: record.Host + "." + zoneInfo.ZoneName
+			// Type:  record.Type
+			// Target: record.Value
+			// TTL: record.TTL
+			endpoints = append(endpoints, endpoint.NewEndpointWithTTL(dnsName, record.Type, endpoint.TTL(ttl), targets...))
+		}
+	}
+
+	logrus.Debugf("Returned Volcengine Private Zone records: %+v", endpoints)
+	return endpoints, nil
 }
 
 func (p *Provider) createPrivateZoneRecords(ctx context.Context, zones provider.ZoneIDName, endpoints []*endpoint.Endpoint) error {
@@ -292,7 +352,7 @@ func (p *Provider) updatePrivateZoneRecords(ctx context.Context, zoneMap provide
 				value = unescapeTXTRecordValue(value)
 			}
 			if volcengine.StringValue(record.Type) == "CNAME" {
-				value = cleanCNAMEValue(value)
+				value = normalizeDomain(value)
 			}
 			found := false
 			for _, target := range ep.Targets {

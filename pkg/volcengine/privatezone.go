@@ -27,7 +27,6 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/request"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/session"
-	"sigs.k8s.io/external-dns/endpoint"
 )
 
 var (
@@ -48,7 +47,6 @@ type Record struct {
 
 type privateZoneAPI interface {
 	ListPrivateZones(ctx context.Context, vpcID string) ([]*privatezone.ZoneForListPrivateZonesOutput, error)
-	ListRecordsByVPC(ctx context.Context, vpc string) (endpoints []*endpoint.Endpoint, err error)
 	GetPrivateZoneRecords(ctx context.Context, zid int64) ([]*privatezone.RecordForListRecordsOutput, error)
 	CreatePrivateZoneRecord(ctx context.Context, zoneID int64, domain, recordType, target string, TTL int32) error
 	BatchCreatePrivateZoneRecord(ctx context.Context, zoneID int64, records []*privatezone.RecordForBatchCreateRecordInput) error
@@ -93,70 +91,6 @@ func NewPrivateZoneWrapper(regionID, pvzEndpoint string, credentials *credential
 	return &PrivateZoneWrapper{
 		client: pc,
 	}, nil
-}
-
-// ListRecordsByVPC returns the list of private zones for the given VPC.
-func (w *PrivateZoneWrapper) ListRecordsByVPC(ctx context.Context, vpc string) (endpoints []*endpoint.Endpoint, err error) {
-	// step 1: get all private zones bind to vpc
-	vpcZones, err := w.ListPrivateZones(ctx, vpc)
-	if err != nil {
-		logrus.Errorf("Failed to list volcengine privatezones: %v", err)
-		return nil, err
-	}
-
-	// step 2: get all record with private zone
-	for _, zone := range vpcZones {
-		records, err := w.GetPrivateZoneRecords(ctx, int64(volcengine.Int32Value(zone.ZID)))
-		if err != nil {
-			logrus.Errorf("Failed to get privatezone records: %v", err)
-			return nil, err
-		}
-
-		if len(records) == 0 {
-			continue
-		}
-		// step 3: convert record to endpoint, merge targets with same host and type
-		recordsMap := w.groupPrivateZoneRecords(records)
-		for _, recordList := range recordsMap {
-			record := recordList[0]
-			dnsName := getDNSName(record.Host, *zone.ZoneName)
-			ttl := record.TTL
-			targets := make([]string, 0)
-			for _, r := range recordList {
-				target := r.Target
-				//if record.Type == "TXT" {
-				//	target = unescapeTXTRecordValue(target)
-				//	logrus.Debugf("Unescaped TXT record target: (%s)", target)
-				//}
-				targets = append(targets, target)
-			}
-			// Domain: record.Host + "." + zoneInfo.ZoneName
-			// Type:  record.Type
-			// Target: record.Value
-			// TTL: record.TTL
-			endpoints = append(endpoints, endpoint.NewEndpointWithTTL(dnsName, record.Type, endpoint.TTL(ttl), targets...))
-		}
-	}
-
-	logrus.Debugf("Returned Volcengine Private Zone records: %+v", endpoints)
-	return endpoints, nil
-}
-
-func (w *PrivateZoneWrapper) groupPrivateZoneRecords(zone []*privatezone.RecordForListRecordsOutput) (endpointMap map[string][]Record) {
-	endpointMap = make(map[string][]Record)
-
-	for _, record := range zone {
-		key := volcengine.StringValue(record.Type) + ":" + volcengine.StringValue(record.Host)
-		recordList := endpointMap[key]
-		endpointMap[key] = append(recordList, Record{
-			Host:   volcengine.StringValue(record.Host),
-			Type:   volcengine.StringValue(record.Type),
-			TTL:    int(volcengine.Int32Value(record.TTL)),
-			Target: volcengine.StringValue(record.Value),
-		})
-	}
-
-	return endpointMap
 }
 
 // CreatePrivateZoneRecord creates a new private zone record.
@@ -263,7 +197,7 @@ func (w *PrivateZoneWrapper) DeletePrivateZoneRecord(ctx context.Context, zoneID
 				logrus.Tracef("Unescape txt record value: (%s), host: %s, zid: %d", value, host, zoneID)
 			}
 			if volcengine.StringValue(record.Type) == "CNAME" {
-				value = cleanCNAMEValue(value)
+				value = normalizeDomain(value)
 				logrus.Tracef("Clean cname target: (%s), host: %s, zid: %d", value, host, zoneID)
 			}
 

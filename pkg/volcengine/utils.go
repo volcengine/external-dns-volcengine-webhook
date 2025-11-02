@@ -17,8 +17,11 @@ package volcengine
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"github.com/volcengine/volcengine-go-sdk/service/privatezone"
+	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
 // MaskSecret masks the secret with ****
@@ -119,7 +122,7 @@ func splitDNSName(dnsName, zoneName string) (host string, domain string) {
 	return host, domain
 }
 
-func cleanCNAMEValue(value string) string {
+func normalizeDomain(value string) string {
 	return strings.TrimSuffix(value, ".")
 }
 
@@ -140,4 +143,21 @@ func NewLoggerAdapter(logger *logrus.Entry) *LoggerAdapter {
 
 func (l *LoggerAdapter) Log(args ...interface{}) {
 	l.Entry.Log(l.Logger.GetLevel(), args...)
+}
+
+func groupPrivateZoneRecords(zone []*privatezone.RecordForListRecordsOutput) (endpointMap map[string][]Record) {
+	endpointMap = make(map[string][]Record)
+
+	for _, record := range zone {
+		key := volcengine.StringValue(record.Type) + ":" + volcengine.StringValue(record.Host)
+		recordList := endpointMap[key]
+		endpointMap[key] = append(recordList, Record{
+			Host:   volcengine.StringValue(record.Host),
+			Type:   volcengine.StringValue(record.Type),
+			TTL:    int(volcengine.Int32Value(record.TTL)),
+			Target: volcengine.StringValue(record.Value),
+		})
+	}
+
+	return endpointMap
 }

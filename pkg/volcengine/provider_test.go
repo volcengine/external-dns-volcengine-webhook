@@ -38,11 +38,6 @@ func (m *MockPrivateZoneAPI) ListPrivateZones(ctx context.Context, vpcID string)
 	return args.Get(0).([]*privatezone.ZoneForListPrivateZonesOutput), args.Error(1)
 }
 
-func (m *MockPrivateZoneAPI) ListRecordsByVPC(ctx context.Context, vpc string) ([]*endpoint.Endpoint, error) {
-	args := m.Called(ctx, vpc)
-	return args.Get(0).([]*endpoint.Endpoint), args.Error(1)
-}
-
 func (m *MockPrivateZoneAPI) GetPrivateZoneRecords(ctx context.Context, zid int64) ([]*privatezone.RecordForListRecordsOutput, error) {
 	args := m.Called(ctx, zid)
 	return args.Get(0).([]*privatezone.RecordForListRecordsOutput), args.Error(1)
@@ -93,15 +88,40 @@ func TestProviderRecords(t *testing.T) {
 	// Create a mock privateZoneAPI
 	mockAPI := new(MockPrivateZoneAPI)
 
-	// Mock ListRecordsByVPC response
-	expectedEndpoints := []*endpoint.Endpoint{endpoint.NewEndpoint("www.example.com", "A", "1.2.3.4")}
-	mockAPI.On("ListRecordsByVPC", mock.Anything, "vpc-123").Return(expectedEndpoints, nil)
+	// Prepare mock data
+	mockZones := []*privatezone.ZoneForListPrivateZonesOutput{
+		{
+			ZID:      volcengine.Int32(123),
+			ZoneName: volcengine.String("example.com"),
+		},
+		{
+			ZID:      volcengine.Int32(456),
+			ZoneName: volcengine.String("other.com"),
+		},
+	}
+
+	mockRecords := []*privatezone.RecordForListRecordsOutput{
+		{
+			Host:     volcengine.String("www"),
+			Type:     volcengine.String("A"),
+			Value:    volcengine.String("1.2.3.4"),
+			TTL:      volcengine.Int32(60),
+			RecordID: volcengine.String("record-1"),
+		},
+	}
+
+	// Mock ListPrivateZones and GetPrivateZoneRecords responses
+	mockAPI.On("ListPrivateZones", mock.Anything, "vpc-123").Return(mockZones, nil)
+	mockAPI.On("GetPrivateZoneRecords", mock.Anything, int64(123)).Return(mockRecords, nil)
 
 	// Create Provider and inject mock API
 	provider := &Provider{
-		vpcID:       "vpc-123",
-		privateZone: true,
 		pzClient:    mockAPI,
+		privateZone: true,
+		vpcID:       "vpc-123",
+		domainFilter: endpoint.DomainFilter{
+			Filters: []string{"example.com"},
+		},
 	}
 
 	// Call the method
@@ -109,9 +129,13 @@ func TestProviderRecords(t *testing.T) {
 
 	// Verify results
 	assert.NoError(t, err)
-	assert.Equal(t, expectedEndpoints, endpoints)
+	assert.Len(t, endpoints, 1)
+	assert.Equal(t, "www.example.com", endpoints[0].DNSName)
+	assert.Equal(t, "A", endpoints[0].RecordType)
+	assert.Equal(t, "1.2.3.4", endpoints[0].Targets[0])
+	assert.Equal(t, endpoint.TTL(60), endpoints[0].RecordTTL)
 
-	// Verify mock method was called
+	// Verify mock methods were called
 	mockAPI.AssertExpectations(t)
 }
 
@@ -130,7 +154,8 @@ func TestProviderApplyChanges(t *testing.T) {
 		&privatezone.ZoneForListPrivateZonesOutput{
 			ZID:      volcengine.Int32(123),
 			ZoneName: volcengine.String("example.com"),
-		}}
+		},
+	}
 	mockAPI.On("ListPrivateZones", mock.Anything, "vpc-123").Return(mockZones, nil)
 
 	// Mock create and delete record responses

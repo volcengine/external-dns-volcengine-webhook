@@ -21,6 +21,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/volcengine/volcengine-go-sdk/service/privatezone"
+	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
 func TestCleanCNAMEValue(t *testing.T) {
@@ -48,7 +50,7 @@ func TestCleanCNAMEValue(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := cleanCNAMEValue(tc.value)
+			result := normalizeDomain(tc.value)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -284,4 +286,42 @@ func TestLoggerAdapter(t *testing.T) {
 
 	// Since the Log method outputs based on log level, we can't directly verify the output, but at least ensure the call doesn't crash
 	assert.NotNil(t, adapter)
+}
+
+func TestGroupPrivateZoneRecords(t *testing.T) {
+	// Prepare test data
+	records := []*privatezone.RecordForListRecordsOutput{
+		{
+			Host:  volcengine.String("www"),
+			Type:  volcengine.String("A"),
+			Value: volcengine.String("1.2.3.4"),
+			TTL:   volcengine.Int32(60),
+		},
+		{
+			Host:  volcengine.String("www"),
+			Type:  volcengine.String("A"),
+			Value: volcengine.String("5.6.7.8"),
+			TTL:   volcengine.Int32(60),
+		},
+		{
+			Host:  volcengine.String("api"),
+			Type:  volcengine.String("A"),
+			Value: volcengine.String("9.10.11.12"),
+			TTL:   volcengine.Int32(60),
+		},
+	}
+
+	// Create test object and call method
+	grouped := groupPrivateZoneRecords(records)
+
+	// Verify results
+	assert.Len(t, grouped, 2)
+	assert.Len(t, grouped["A:www"], 2)
+	assert.Len(t, grouped["A:api"], 1)
+
+	// Verify the content of grouped records
+	assert.Equal(t, "www", grouped["A:www"][0].Host)
+	assert.Equal(t, "A", grouped["A:www"][0].Type)
+	assert.Equal(t, "1.2.3.4", grouped["A:www"][0].Target)
+	assert.Equal(t, "5.6.7.8", grouped["A:www"][1].Target)
 }

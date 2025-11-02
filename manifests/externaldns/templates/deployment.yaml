@@ -121,6 +121,10 @@ spec:
           value: {{ .Values.userConfig.env.provider.privatezoneEndpoint | quote }}
         - name: VOLCENGINE_STS_ENDPOINT
           value: {{.Values.userConfig.env.provider.stsEndpoint | quote }}
+        {{- if .Values.userConfig.args.controller.domainFilters }}
+        - name: VOLCENGINE_DOMAIN_FILTER
+          value: {{ join "," .Values.userConfig.args.controller.domainFilters }}
+        {{- end }}
         resources:
           limits:
             memory: {{ .Values.userConfig.Resources.provider.Limits.Memory }}

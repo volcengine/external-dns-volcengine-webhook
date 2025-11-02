@@ -72,6 +72,7 @@ func startServer() {
 	stsEndpoint := viper.GetString("sts_endpoint")
 	oidcTokenFile := viper.GetString("oidc_token_file")
 	oidcRoleTrn := viper.GetString("oidc_role_trn")
+	domainFilter := viper.GetString("domain_filter")
 
 	// Print debug logs if enabled
 	log.Debugf("Starting server with configuration: port=%d, access_key=%s, secret_key=%s vpc=%s, endpoint=%s, region=%s, oidc_token_file=%s oidc_role_trn=%s \n",
@@ -89,6 +90,10 @@ func startServer() {
 		options = append(options, volcengine.WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFile))
 	} else {
 		panic("aksk or oidc token file is required")
+	}
+	if domainFilter != "" {
+		log.Infof("Using domain_filter=%s\n", domainFilter)
+		options = append(options, volcengine.WithDomainFilter(domainFilter))
 	}
 
 	provider, err := volcengine.NewVolcengineProvider(options)
