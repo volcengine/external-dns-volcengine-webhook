@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // KubernetesClient encapsulates operations on Kubernetes resources
@@ -43,11 +43,11 @@ func NewKubernetesClient(kubeconfig string) (*KubernetesClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file for kubeconfig: %w", err)
 	}
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	// Add defer statement to ensure the temporary file is deleted
 	defer func() {
-		os.Remove(tempFile.Name())
+		_ = os.Remove(tempFile.Name())
 	}()
 
 	if err := os.WriteFile(tempFile.Name(), []byte(kubeconfig), 0600); err != nil {
@@ -137,7 +137,7 @@ func (k *KubernetesClient) CreateTestIngress(ctx context.Context, namespace, nam
 			},
 		},
 		Spec: networkingv1.IngressSpec{
-			IngressClassName: pointer.String("nginx"),
+			IngressClassName: ptr.To("nginx"),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: domain,

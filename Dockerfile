@@ -13,7 +13,8 @@ RUN go env -w GOSUMDB="sum.golang.google.cn"
 WORKDIR /app
     
 COPY go.mod go.sum /app/
-    
+
+RUN apk update && apk add --no-cache git
 RUN go mod download
     
 COPY . .
