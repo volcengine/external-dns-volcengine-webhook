@@ -10,7 +10,7 @@ publicConfig:
       pullPolicy: IfNotPresent
     provider:
       repository: volcengine/external-dns-provider
-      tag: v0.2.0
+      tag: v0.2.1
       pullPolicy: IfNotPresent
 
 userConfig:
@@ -53,7 +53,7 @@ userConfig:
       txtPrefix: externaldns-%{record_type}. # @schema type:[string, null]; default: externaldns-%{record_type}.
       txtWildcardReplacement: wildcard # @schema type:[string, null]; default: wildcard
     provider:
-      logLevel: false
+      logLevel: info
   env:
     provider:
       vpc:

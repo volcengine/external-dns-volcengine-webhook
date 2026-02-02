@@ -31,4 +31,4 @@ FROM alpine:3.22
 USER 20000:20000
 
 COPY --from=builder --chmod=555 /app/external-dns-volcengine-webhook /opt/external-dns-volcengine-webhook
-# ENTRYPOINT ["/opt/external-dns-volcengine-webhook"]
+ENTRYPOINT ["/opt/external-dns-volcengine-webhook"]

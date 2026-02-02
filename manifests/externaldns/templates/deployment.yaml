@@ -88,8 +88,6 @@ spec:
           successThreshold: 1
       - name: provider
         image: {{ .Values.publicConfig.image.provider.repository }}:{{ .Values.publicConfig.image.provider.tag }}
-        command:
-        - /opt/external-dns-volcengine-webhook
         args:
         - start
         - --port=8888
