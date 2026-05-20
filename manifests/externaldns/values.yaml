@@ -10,7 +10,7 @@ publicConfig:
       pullPolicy: IfNotPresent
     provider:
       repository: volcengine/external-dns-provider
-      tag: v0.2.1
+      tag: v0.3.0
       pullPolicy: IfNotPresent
 
 userConfig:
@@ -62,4 +62,7 @@ userConfig:
       stsEndpoint: sts.volcengineapi.com
       credentialsProvider: aksk     # @schema enum:[aksk, irsa]; default: "aksk"
       secretName:
-      oidcRoleTrn:
+      oidcRoleTrn:                  # source role used only when credentialsProvider=irsa
+      roleTrn:                      # target role assumed after source credentials are resolved
+      roleSessionName:
+      durationSeconds:

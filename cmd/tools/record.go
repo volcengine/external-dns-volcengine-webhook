@@ -17,7 +17,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -60,37 +59,48 @@ var (
 	zone   int64
 )
 
+type recordCredentialConfig struct {
+	AccessKey       string
+	SecretKey       string
+	Region          string
+	STSEndpoint     string
+	OIDCTokenFile   string
+	OIDCRoleTrn     string
+	AssumeRoleTrn   string
+	RoleSessionName string
+	DurationSeconds int32
+}
+
 func init() {
 	RecordCmd.PersistentFlags().Int64Var(&zone, "zone", 0, "zone id")
+	RecordCmd.PersistentFlags().String("sts_endpoint", "", "STS endpoint")
+	RecordCmd.PersistentFlags().String("role_trn", "", "target role trn for AssumeRole")
+	RecordCmd.PersistentFlags().String("role_session_name", "", "session name for AssumeRole")
+	RecordCmd.PersistentFlags().Int32("duration_seconds", 0, "session duration seconds for AssumeRole")
 	recordAddCmd.PersistentFlags().StringVar(&record, "record", "", "record to add, like host#type#target")
 	recordDeleteCmd.PersistentFlags().StringVar(&record, "record", "", "record to delete, like host#type#target")
+
+	mustBindRecordFlag("sts_endpoint")
+	mustBindRecordFlag("role_trn")
+	mustBindRecordFlag("role_session_name")
+	mustBindRecordFlag("duration_seconds")
 
 	RecordCmd.AddCommand(recordAddCmd)
 	RecordCmd.AddCommand(recordDeleteCmd)
 	RecordCmd.AddCommand(recordListCmd)
 }
 
+func mustBindRecordFlag(flagName string) {
+	if err := viper.BindPFlag(flagName, RecordCmd.PersistentFlags().Lookup(flagName)); err != nil {
+		log.Fatalf("failed to bind %s flag: %v", flagName, err)
+	}
+}
+
 func newPrivateZoneClient() (*volcengine.PrivateZoneWrapper, error) {
-	accessKey := viper.GetString("access_key")
-	secretKey := viper.GetString("secret_key")
-	stsEndpoint := viper.GetString("sts_endpoint")
-	oidcTokenFile := viper.GetString("oidc_token_file")
-	roleTrn := viper.GetString("role_trn")
-	var c *credentials.Credentials
-	if accessKey != "" && secretKey != "" {
-		log.Infof("Using static credentials with access_key=%s and secret_key=%s\n", volcengine.MaskSecret(accessKey), volcengine.MaskSecret(secretKey))
-		c = credentials.NewStaticCredentials(accessKey, secretKey, "")
-	} else if oidcTokenFile != "" && roleTrn != "" {
-		log.Infof("Using oidc token file with oidcTokenFile=%s role_trn=%s \n", oidcTokenFile, roleTrn)
-		p := credentials.NewOIDCCredentialsProviderFromEnv()
-		p.OIDCTokenFilePath = oidcTokenFile
-		p.RoleTrn = roleTrn
-		p.Endpoint = stsEndpoint
-		p.RoleTrn = roleTrn
-		p.RoleSessionName = "external-dns"
-		c = credentials.NewCredentials(p)
-	} else {
-		return nil, fmt.Errorf("aksk or oidc token file is required")
+	credentialConfig := recordCredentialConfigFromViper()
+	c, err := buildRecordCredentials(credentialConfig)
+	if err != nil {
+		return nil, err
 	}
 	client, err := volcengine.NewPrivateZoneWrapper(viper.GetString("region"), viper.GetString("privatezone_endpoint"), c)
 	if err != nil {
@@ -99,6 +109,54 @@ func newPrivateZoneClient() (*volcengine.PrivateZoneWrapper, error) {
 	}
 
 	return client, nil
+}
+
+func recordCredentialConfigFromViper() recordCredentialConfig {
+	assumeRoleTrn := viper.GetString("role_trn")
+	oidcRoleTrn := viper.GetString("oidc_role_trn")
+	if oidcRoleTrn == "" && viper.GetString("oidc_token_file") != "" && assumeRoleTrn != "" {
+		log.Warn("`role_trn` is now reserved for target AssumeRole; falling back to it as legacy OIDC source role because `oidc_role_trn` is unset")
+		oidcRoleTrn = assumeRoleTrn
+		assumeRoleTrn = ""
+	}
+
+	return recordCredentialConfig{
+		AccessKey:       viper.GetString("access_key"),
+		SecretKey:       viper.GetString("secret_key"),
+		Region:          viper.GetString("region"),
+		STSEndpoint:     viper.GetString("sts_endpoint"),
+		OIDCTokenFile:   viper.GetString("oidc_token_file"),
+		OIDCRoleTrn:     oidcRoleTrn,
+		AssumeRoleTrn:   assumeRoleTrn,
+		RoleSessionName: viper.GetString("role_session_name"),
+		DurationSeconds: viper.GetInt32("duration_seconds"),
+	}
+}
+
+func buildRecordCredentials(config recordCredentialConfig) (*credentials.Credentials, error) {
+	if config.AccessKey != "" && config.SecretKey != "" {
+		log.Infof("Using static credentials with access_key=%s and secret_key=%s", volcengine.MaskSecret(config.AccessKey), volcengine.MaskSecret(config.SecretKey))
+	} else if config.OIDCTokenFile != "" && config.OIDCRoleTrn != "" {
+		log.Infof("Using oidc token file with oidcTokenFile=%s oidc_role_trn=%s", config.OIDCTokenFile, config.OIDCRoleTrn)
+	}
+	if config.AssumeRoleTrn != "" {
+		log.Infof("Using AssumeRole target role_trn=%s role_session_name=%s duration_seconds=%d", config.AssumeRoleTrn, config.RoleSessionName, config.DurationSeconds)
+	}
+
+	return volcengine.NewCredentials(volcengine.CredentialOptions{
+		AccessKey:     config.AccessKey,
+		SecretKey:     config.SecretKey,
+		STSEndpoint:   config.STSEndpoint,
+		OIDCTokenFile: config.OIDCTokenFile,
+		OIDCRoleTrn:   config.OIDCRoleTrn,
+		AssumeRoleConfig: &volcengine.AssumeRoleOptions{
+			Region:          config.Region,
+			STSEndpoint:     config.STSEndpoint,
+			RoleTrn:         config.AssumeRoleTrn,
+			RoleSessionName: config.RoleSessionName,
+			DurationSeconds: config.DurationSeconds,
+		},
+	})
 }
 
 func recordListHandler() {

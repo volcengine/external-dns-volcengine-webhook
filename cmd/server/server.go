@@ -44,6 +44,22 @@ var (
 	writeTimeOut int
 )
 
+type startConfig struct {
+	Port            int
+	AccessKey       string
+	SecretKey       string
+	VpcID           string
+	RegionID        string
+	PrivateZoneEP   string
+	STSEndpoint     string
+	OIDCTokenFile   string
+	OIDCRoleTrn     string
+	RoleTrn         string
+	RoleSessionName string
+	DurationSeconds int32
+	DomainFilter    string
+}
+
 func init() {
 	// Bind flags to the start command
 	StartCmd.Flags().Int("port", 8888, "Port to listen on")
@@ -62,38 +78,26 @@ func startServer() {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Infof("No configuration file found: %v\n", err)
 	}
-	// Read configuration values
-	port := viper.GetInt("port")
-	accessKey := viper.GetString("access_key")
-	secretKey := viper.GetString("secret_key")
-	vpcID := viper.GetString("vpc")
-	regionID := viper.GetString("region")
-	pvzEndpoint := viper.GetString("privatezone_endpoint")
-	stsEndpoint := viper.GetString("sts_endpoint")
-	oidcTokenFile := viper.GetString("oidc_token_file")
-	oidcRoleTrn := viper.GetString("oidc_role_trn")
-	domainFilter := viper.GetString("domain_filter")
+	cfg := loadStartConfig(viper.GetViper())
 
 	// Print debug logs if enabled
-	log.Debugf("Starting server with configuration: port=%d, access_key=%s, secret_key=%s vpc=%s, endpoint=%s, region=%s, oidc_token_file=%s oidc_role_trn=%s \n",
-		port, volcengine.MaskSecret(accessKey), volcengine.MaskSecret(secretKey), vpcID, pvzEndpoint, regionID, oidcTokenFile, oidcRoleTrn)
+	log.Debugf("Starting server with configuration: port=%d, access_key=%s, secret_key=%s vpc=%s, endpoint=%s, region=%s, oidc_token_file=%s oidc_role_trn=%s role_trn=%s role_session_name=%s duration_seconds=%d\n",
+		cfg.Port,
+		volcengine.MaskSecret(cfg.AccessKey),
+		volcengine.MaskSecret(cfg.SecretKey),
+		cfg.VpcID,
+		cfg.PrivateZoneEP,
+		cfg.RegionID,
+		cfg.OIDCTokenFile,
+		cfg.OIDCRoleTrn,
+		cfg.RoleTrn,
+		cfg.RoleSessionName,
+		cfg.DurationSeconds,
+	)
 
-	options := []volcengine.Option{
-		volcengine.WithPrivateZone(regionID, vpcID),
-		volcengine.WithPrivateZoneEndpoint(pvzEndpoint),
-	}
-	if accessKey != "" && secretKey != "" {
-		log.Infof("Using static credentials with access_key=%s and secret_key=%s\n", volcengine.MaskSecret(accessKey), volcengine.MaskSecret(secretKey))
-		options = append(options, volcengine.WithStaticCredentials(accessKey, secretKey))
-	} else if oidcTokenFile != "" && oidcRoleTrn != "" {
-		log.Infof("Using oidc token file with oidcTokenFile=%s oidc_role_trn=%s \n", oidcTokenFile, oidcRoleTrn)
-		options = append(options, volcengine.WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFile))
-	} else {
-		panic("aksk or oidc token file is required")
-	}
-	if domainFilter != "" {
-		log.Infof("Using domain_filter=%s\n", domainFilter)
-		options = append(options, volcengine.WithDomainFilter(domainFilter))
+	options, err := buildProviderOptions(cfg)
+	if err != nil {
+		panic(err)
 	}
 
 	provider, err := volcengine.NewVolcengineProvider(options)
@@ -113,13 +117,60 @@ func startServer() {
 		provider, startedChan,
 		time.Duration(readTimeOut)*time.Second,
 		time.Duration(writeTimeOut)*time.Second,
-		fmt.Sprintf("0.0.0.0:%d", port),
+		fmt.Sprintf("0.0.0.0:%d", cfg.Port),
 	)
 
 	// Wait for the HTTP server to start and then set the healthy and ready flags
 	<-startedChan
-	log.Infof("Listening on port %d...\n", port)
+	log.Infof("Listening on port %d...\n", cfg.Port)
 
 	<-ctx.Done()
 	log.Infof("Shutting down...\n")
+}
+
+func loadStartConfig(v *viper.Viper) startConfig {
+	return startConfig{
+		Port:            v.GetInt("port"),
+		AccessKey:       v.GetString("access_key"),
+		SecretKey:       v.GetString("secret_key"),
+		VpcID:           v.GetString("vpc"),
+		RegionID:        v.GetString("region"),
+		PrivateZoneEP:   v.GetString("privatezone_endpoint"),
+		STSEndpoint:     v.GetString("sts_endpoint"),
+		OIDCTokenFile:   v.GetString("oidc_token_file"),
+		OIDCRoleTrn:     v.GetString("oidc_role_trn"),
+		RoleTrn:         v.GetString("role_trn"),
+		RoleSessionName: v.GetString("role_session_name"),
+		DurationSeconds: int32(v.GetInt("duration_seconds")),
+		DomainFilter:    v.GetString("domain_filter"),
+	}
+}
+
+func buildProviderOptions(cfg startConfig) ([]volcengine.Option, error) {
+	options := []volcengine.Option{
+		volcengine.WithPrivateZone(cfg.RegionID, cfg.VpcID),
+		volcengine.WithPrivateZoneEndpoint(cfg.PrivateZoneEP),
+	}
+
+	if cfg.AccessKey != "" && cfg.SecretKey != "" {
+		log.Infof("Using static credentials with access_key=%s and secret_key=%s\n", volcengine.MaskSecret(cfg.AccessKey), volcengine.MaskSecret(cfg.SecretKey))
+		options = append(options, volcengine.WithStaticCredentials(cfg.AccessKey, cfg.SecretKey))
+	} else if cfg.OIDCTokenFile != "" && cfg.OIDCRoleTrn != "" {
+		log.Infof("Using oidc token file with oidcTokenFile=%s oidc_role_trn=%s\n", cfg.OIDCTokenFile, cfg.OIDCRoleTrn)
+		options = append(options, volcengine.WithOIDCCredentials(cfg.STSEndpoint, cfg.OIDCRoleTrn, cfg.OIDCTokenFile))
+	} else {
+		return nil, fmt.Errorf("aksk or oidc token file is required")
+	}
+
+	if cfg.RoleTrn != "" {
+		log.Infof("Using assume role with role_trn=%s role_session_name=%s duration_seconds=%d\n", cfg.RoleTrn, cfg.RoleSessionName, cfg.DurationSeconds)
+		options = append(options, volcengine.WithAssumeRole(cfg.RegionID, cfg.STSEndpoint, cfg.RoleTrn, cfg.RoleSessionName, cfg.DurationSeconds))
+	}
+
+	if cfg.DomainFilter != "" {
+		log.Infof("Using domain_filter=%s\n", cfg.DomainFilter)
+		options = append(options, volcengine.WithDomainFilter(cfg.DomainFilter))
+	}
+
+	return options, nil
 }

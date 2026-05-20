@@ -12,9 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git .
-          git checkout ${{ github.ref }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Go
         run: |
@@ -23,12 +24,8 @@ jobs:
           export PATH=$PATH:/usr/local/go/bin
           go version
 
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
-          
-          
       - name: Run golangci-lint
-        run: |
-          export PATH=$PATH:$(go env GOPATH)/bin
-          golangci-lint run --timeout=5m
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m

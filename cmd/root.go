@@ -74,5 +74,8 @@ func init() {
 	viper.MustBindEnv("sts_endpoint")
 	viper.MustBindEnv("oidc_token_file")
 	viper.MustBindEnv("oidc_role_trn")
+	viper.MustBindEnv("role_trn")
+	viper.MustBindEnv("role_session_name")
+	viper.MustBindEnv("duration_seconds")
 	viper.MustBindEnv("domain_filter")
 }
