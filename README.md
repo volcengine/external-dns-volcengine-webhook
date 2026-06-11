@@ -5,6 +5,10 @@ It bridges ExternalDNS and Volcengine DNS so that every DNS record
 corresponding Volcengine DNS API call through a lightweight webhook
 server.
 
+## Security and privacy
+This project takes security seriously. 
+For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md)
+
 # Features
 - Webhook integration – dynamic DNS-record management via ExternalDNS
 webhooks
