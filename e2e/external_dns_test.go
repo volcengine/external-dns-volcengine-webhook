@@ -70,10 +70,7 @@ var _ = Describe("ExternalDNS Volcengine Provider", func() {
 		ctx := context.Background()
 
 		// Try to delete existing namespace (ignore error if not exists)
-		deleteErr := kubeClient.DeleteNamespace(ctx, testNamespace)
-		if deleteErr != nil {
-			fmt.Printf("Warning: Failed to delete existing namespace %s, but continuing test: %v\n", testNamespace, deleteErr)
-		}
+		_ = kubeClient.DeleteNamespace(ctx, testNamespace)
 
 		By("Waiting for namespace deletion to complete")
 		// Wait for a while to ensure namespace deletion is complete
@@ -507,7 +504,6 @@ var _ = Describe("ExternalDNS Volcengine Provider", func() {
 				}
 			}
 
-			fmt.Printf("Found %d IP addresses in DNS records, expected %d\n", len(targetRecords), len(expectedIPs))
 			// Verify record count matches specified IP count
 			Expect(len(targetRecords)).To(Equal(len(expectedIPs)),
 				fmt.Sprintf("Found %d IP addresses in DNS records, expected %d\n", len(targetRecords), len(expectedIPs)))

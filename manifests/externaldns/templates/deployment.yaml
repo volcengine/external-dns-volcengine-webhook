@@ -119,6 +119,18 @@ spec:
           value: {{ .Values.userConfig.env.provider.privatezoneEndpoint | quote }}
         - name: VOLCENGINE_STS_ENDPOINT
           value: {{.Values.userConfig.env.provider.stsEndpoint | quote }}
+        {{- if .Values.userConfig.env.provider.roleTrn }}
+        - name: VOLCENGINE_ROLE_TRN
+          value: {{ .Values.userConfig.env.provider.roleTrn | quote }}
+        {{- end }}
+        {{- if .Values.userConfig.env.provider.roleSessionName }}
+        - name: VOLCENGINE_ROLE_SESSION_NAME
+          value: {{ .Values.userConfig.env.provider.roleSessionName | quote }}
+        {{- end }}
+        {{- if .Values.userConfig.env.provider.durationSeconds }}
+        - name: VOLCENGINE_DURATION_SECONDS
+          value: {{ .Values.userConfig.env.provider.durationSeconds | quote }}
+        {{- end }}
         {{- if .Values.userConfig.args.controller.domainFilters }}
         - name: VOLCENGINE_DOMAIN_FILTER
           value: {{ join "," .Values.userConfig.args.controller.domainFilters }}

@@ -6,16 +6,16 @@ corresponding Volcengine DNS API call through a lightweight webhook
 server.
 
 ## Security and privacy
-This project takes security seriously. 
+This project takes security seriously.
 For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md)
 
 # Features
 - Webhook integration – dynamic DNS-record management via ExternalDNS
-webhooks
+  webhooks
 - Volcengine DNS native – all operations are forwarded to Volcengine
-DNS service
+  DNS service
 - Flexible configuration – configurable through files or environment
-variables
+  variables
 
 # Installation
 Prerequisites
@@ -40,8 +40,32 @@ Volcengine API key (AK/SK) should be created with the following permissions:
   ]
 }
 ```
-## [Optional] Prepare VKE RISA
+## [Optional] Prepare VKE IRSA
 https://www.volcengine.com/docs/6460/1324604
+
+## [Optional] Prepare cross-account AssumeRole
+If you need to use credentials from account `100000` to assume a role in account `100001`, prepare a target role in account `100001` with permissions required by PrivateZone, then grant `sts:AssumeRole` to the source identity from account `100000` in the target role trust policy.
+
+Note: when a role in account `100000` assumes a role in account `100001`, the trust policy in account `100001` should explicitly include the role from account `a`, not only the account root. Example:
+
+```json
+{
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sts:AssumeRole"
+      ],
+      "Principal": {
+        "IAM": [
+          "trn:iam::100000:root",
+          "trn:iam::100000:role/dns-demo-role"
+        ]
+      }
+    }
+  ]
+}
+```
 
 ## Deploy with Helm
 1. Export environment variables
@@ -49,6 +73,9 @@ https://www.volcengine.com/docs/6460/1324604
    export VOLCENGINE_CREDENTILALS_PROVIDER="aksk"         # support aksk or irsa
    export VOLCENGINE_SECRET_NAME="your-secret-with-ak-sk" # optional if use aksk
    export VOLCENGINE_OIDC_ROLE_TRN="your-oidc-role-trn"   # optional if use irsa
+   export VOLCENGINE_ROLE_TRN="your-target-role-trn"      # optional if need AssumeRole, including cross-account access
+   export VOLCENGINE_ROLE_SESSION_NAME="external-dns"     # optional
+   export VOLCENGINE_DURATION_SECONDS="3600"              # optional
    export VOLCENGINE_AK="your-ak"
    export VOLCENGINE_SK="your-sk"
    export VOLCENGINE_VPC="your-vpc-id"
@@ -74,11 +101,14 @@ https://www.volcengine.com/docs/6460/1324604
    --set userConfig.env.provider.credentialsProvider=${VOLCENGINE_CREDENTILALS_PROVIDER} \
    --set userConfig.env.provider.secretName=${VOLCENGINE_SECRET_NAME} \
    --set userConfig.env.provider.oidcRoleTrn=${VOLCENGINE_OIDC_ROLE_TRN} \
+   --set userConfig.env.provider.roleTrn=${VOLCENGINE_ROLE_TRN} \
+   --set userConfig.env.provider.roleSessionName=${VOLCENGINE_ROLE_SESSION_NAME} \
+   --set userConfig.env.provider.durationSeconds=${VOLCENGINE_DURATION_SECONDS} \
    --set userConfig.env.provider.vpc=${VOLCENGINE_VPC} \
    --set userConfig.env.provider.region=${VOLCENGINE_REGION} \
    --set userConfig.env.provider.privatezoneEndpoint=${VOLCENGINE_PRIVATEZONE_ENDPOINT} \
    --set userConfig.env.provider.stsEndpoint=${VOLCENGINE_STS_ENDPOINT} \
-   --set userConfig.args.controller.domainFilter=${TARGET_DOMAINS} \
+   --set userConfig.args.controller.domainFilters=${TARGET_DOMAINS} \
    --set publicConfig.image.controller.repository=registry.k8s.io/external-dns/external-dns \
    --set publicConfig.image.provider.repository=volcengine/external-dns-volcengine-webhook
 ```
@@ -95,6 +125,9 @@ https://www.volcengine.com/docs/6460/1324604
 | userConfig.env.provider.credentialsProvider       | Provider used to obtain Volcengine API credentials. Valid values: aksk (default) or irsa                                                                                  | aksk                                       | yes      | 
 | userConfig.env.provider.secretName                | Kubernetes secret that contains Volcengine Access Key (access-key) and Secret Key (secret-key), must set if `credentialsProvider=aksk`                                    | --                                         | no       |
 | userConfig.env.provider.oidcRoleTrn               | Volcengine OpenID Connect (OIDC) role to assume for API access, must set if `credentialsProvider=irsa`                                                                    | --                                         | no       |
+| userConfig.env.provider.roleTrn                   | Target role TRN used by STS AssumeRole after source credentials are resolved. For cross-account access, configure this as the target account role.                         | --                                         | no       |
+| userConfig.env.provider.roleSessionName           | Session name used when calling STS AssumeRole.                                                                                                                             | external-dns                               | no       |
+| userConfig.env.provider.durationSeconds           | Session duration in seconds for STS AssumeRole.                                                                                                                            | provider default                           | no       |
 | userConfig.env.provider.vpc                       | Volcengine VPC identifier where the DNS zone is located.                                                                                                                  | --                                         | yes      |
 | userConfig.env.provider.region                    | Volcengine region in which the DNS zone resides.                                                                                                                          | cn-beijing                                 | yes      |
 | userConfig.env.provider.privatezoneEndpoint       | Custom Volcengine OpenAPI privatezone endpoint (overrides built-in global endpoint).                                                                                      | open.volcengineapi.com                     | yes      |
@@ -110,6 +143,11 @@ https://www.volcengine.com/docs/6460/1324604
 | publicConfig.image.provider.repository            | Container image for the Volcengine webhook provider.                                                                                                                      | volcengine/external-dns-volcengine-webhook | no       |
 
 > Tip: override defaults with --set or supply a custom values.yaml via -f.
+
+When using cross-account authorization:
+- If `credentialsProvider=aksk`, `secretName` provides the source account credentials and `roleTrn` is the target account role.
+- If `credentialsProvider=irsa`, `oidcRoleTrn` is the source account role obtained through IRSA and `roleTrn` is the target account role.
+- In the target account role trust policy, explicitly include the source account role ARN/TRN when the source identity is a role.
 
 # Examples
 external-dns support to reconcile LoadBalancer type service and ingress to dns record by default.

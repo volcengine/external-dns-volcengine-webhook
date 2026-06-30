@@ -47,10 +47,13 @@ type Provider struct {
 
 type Option func(*Config)
 
+var newPrivateZoneWrapper = NewPrivateZoneWrapper
+
 // Config is the configuration for the Volcengine provider.
 type Config struct {
 	RegionID     string
 	Credentials  *credentials.Credentials
+	AssumeRole   *AssumeRoleOptions
 	DomainFilter []string
 	// private zone
 	PrivateZone         bool
@@ -71,13 +74,17 @@ func NewVolcengineProvider(options []Option) (*Provider, error) {
 	for _, option := range options {
 		option(c)
 	}
+	finalCredentials, err := NewAssumeRoleCredentials(c.Credentials, c.AssumeRole)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build provider credentials: %v", err)
+	}
 	p := &Provider{
 		vpcID:       c.VpcId,
 		privateZone: c.PrivateZone,
 	}
 	// private zone, only support private zone now
 	if p.privateZone {
-		p.pzClient, err = NewPrivateZoneWrapper(c.RegionID, c.PrivateZoneEndpoint, c.Credentials)
+		p.pzClient, err = newPrivateZoneWrapper(c.RegionID, c.PrivateZoneEndpoint, finalCredentials)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create private zone wrapper: %v", err)
 		}

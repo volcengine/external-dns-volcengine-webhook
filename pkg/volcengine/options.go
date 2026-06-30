@@ -17,7 +17,7 @@ package volcengine
 
 import (
 	"strings"
-	
+
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 )
 
@@ -37,22 +37,31 @@ func WithPrivateZoneEndpoint(endpoint string) Option {
 
 func WithStaticCredentials(accessKey, secretKey string) Option {
 	return func(c *Config) {
-		c.Credentials = credentials.NewStaticCredentials(accessKey, secretKey, "")
+		c.Credentials = NewStaticCredentials(accessKey, secretKey)
 	}
 }
 
 func WithOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFilePath string) Option {
-	if stsEndpoint == "" {
-		stsEndpoint = defaultStsEndpoint
-	}
 	return func(c *Config) {
-		p := credentials.NewOIDCCredentialsProviderFromEnv()
-		p.OIDCTokenFilePath = oidcTokenFilePath
-		p.RoleTrn = oidcRoleTrn
-		p.Endpoint = stsEndpoint
-		p.RoleSessionName = "external-dns"
+		c.Credentials = NewOIDCCredentials(stsEndpoint, oidcRoleTrn, oidcTokenFilePath)
+	}
+}
 
-		c.Credentials = credentials.NewCredentials(p)
+func WithCredentials(creds *credentials.Credentials) Option {
+	return func(c *Config) {
+		c.Credentials = creds
+	}
+}
+
+func WithAssumeRole(region, stsEndpoint, roleTrn, roleSessionName string, durationSeconds int32) Option {
+	return func(c *Config) {
+		c.AssumeRole = &AssumeRoleOptions{
+			Region:          region,
+			STSEndpoint:     stsEndpoint,
+			RoleTrn:         roleTrn,
+			RoleSessionName: roleSessionName,
+			DurationSeconds: durationSeconds,
+		}
 	}
 }
 

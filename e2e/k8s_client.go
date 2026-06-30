@@ -17,11 +17,15 @@ package e2e
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,6 +42,11 @@ type KubernetesClient struct {
 
 // NewKubernetesClient creates a new Kubernetes client
 func NewKubernetesClient(kubeconfig string) (*KubernetesClient, error) {
+	normalizedKubeconfig, err := normalizeKubeconfig(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize kubeconfig: %w", err)
+	}
+
 	// Write kubeconfig to a temporary file
 	tempFile, err := os.CreateTemp("", "kubeconfig-")
 	if err != nil {
@@ -50,7 +59,8 @@ func NewKubernetesClient(kubeconfig string) (*KubernetesClient, error) {
 		_ = os.Remove(tempFile.Name())
 	}()
 
-	if err := os.WriteFile(tempFile.Name(), []byte(kubeconfig), 0600); err != nil {
+	err = os.WriteFile(tempFile.Name(), []byte(normalizedKubeconfig), 0600)
+	if err != nil {
 		return nil, fmt.Errorf("failed to write kubeconfig to temp file: %w", err)
 	}
 
@@ -67,6 +77,48 @@ func NewKubernetesClient(kubeconfig string) (*KubernetesClient, error) {
 	}
 
 	return &KubernetesClient{clientset: clientset}, nil
+}
+
+func normalizeKubeconfig(kubeconfig string) (string, error) {
+	trimmed := strings.TrimSpace(kubeconfig)
+	if trimmed == "" {
+		return "", fmt.Errorf("kubeconfig is empty")
+	}
+
+	var jsonString string
+	if err := json.Unmarshal([]byte(trimmed), &jsonString); err == nil {
+		unwrapped := strings.TrimSpace(jsonString)
+		if looksLikeKubeconfig(unwrapped) {
+			return unwrapped, nil
+		}
+		trimmed = unwrapped
+	} else if unquoted, err := strconv.Unquote(trimmed); err == nil {
+		unwrapped := strings.TrimSpace(unquoted)
+		if looksLikeKubeconfig(unwrapped) {
+			return unwrapped, nil
+		}
+		trimmed = unwrapped
+	}
+
+	if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil {
+		decodedString := strings.TrimSpace(string(decoded))
+		if looksLikeKubeconfig(decodedString) {
+			return decodedString, nil
+		}
+	}
+
+	if looksLikeKubeconfig(trimmed) {
+		return trimmed, nil
+	}
+
+	return "", fmt.Errorf("unsupported kubeconfig format")
+}
+
+func looksLikeKubeconfig(content string) bool {
+	return strings.Contains(content, "apiVersion:") ||
+		strings.Contains(content, "\"apiVersion\"") ||
+		strings.Contains(content, "clusters:") ||
+		strings.Contains(content, "\"clusters\"")
 }
 
 // CreateTestService creates a test Service resource
@@ -188,6 +240,8 @@ func (k *KubernetesClient) DeleteTestResources(ctx context.Context, namespace, n
 
 // WaitForDNSRecord continuously queries PrivateZone, waiting for DNS record creation to complete
 func (k *KubernetesClient) WaitForDNSRecord(ctx context.Context, pzClient *PrivateZoneClient, zoneID int64, host string, timeout time.Duration) (bool, error) {
+	ginkgo.By(fmt.Sprintf("Waiting for DNS record %s to be created", host))
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -207,6 +261,7 @@ func (k *KubernetesClient) WaitForDNSRecord(ctx context.Context, pzClient *Priva
 			}
 
 			for _, record := range records {
+				ginkgo.By(fmt.Sprintf("DNS record %s was created", *record.Host))
 				if *record.Host == host {
 					return true, nil
 				}
