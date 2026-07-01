@@ -46,7 +46,7 @@ https://www.volcengine.com/docs/6460/1324604
 ## [Optional] Prepare cross-account AssumeRole
 If you need to use credentials from account `100000` to assume a role in account `100001`, prepare a target role in account `100001` with permissions required by PrivateZone, then grant `sts:AssumeRole` to the source identity from account `100000` in the target role trust policy.
 
-Note: when a role in account `100000` assumes a role in account `100001`, the trust policy in account `100001` should explicitly include the role from account `a`, not only the account root. Example:
+Note: when a role in account `100000` assumes a role in account `100001`, the trust policy in account `100001` should explicitly include the role from account `100000`, not only the account root. Example:
 
 ```json
 {
