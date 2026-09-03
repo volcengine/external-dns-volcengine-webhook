@@ -1,7 +1,7 @@
 #--------
 # builder
 #--------
-FROM golang:1.24.7-alpine3.22 AS builder
+FROM golang:1.25.14-alpine3.24 AS builder
 
 ARG TARGETPLATFORM
 ARG TARGETOS="linux"
@@ -26,7 +26,7 @@ RUN GOARM=$(if [ -n "${TARGETVARIANT}" ]; then echo "${TARGETVARIANT#\"v\"}"; el
 #--------
 # container
 #--------
-FROM alpine:3.22
+FROM alpine:3.24
 
 USER 20000:20000
 
